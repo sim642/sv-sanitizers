@@ -25,8 +25,11 @@ def compile(args):
         gcc_args += ["-m32"]
     else:
         gcc_args += ["-m64"]
-    print(subprocess.run(gcc_args))
-    return Path("a.out")
+    completed = subprocess.run(gcc_args)
+    if completed.returncode == 0:
+        return Path("a.out").absolute()
+    else:
+        raise RuntimeError("compile error")
 
 def run_one(args, executable):
     print(".", end="", flush=True)
