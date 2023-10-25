@@ -36,8 +36,8 @@ def run_one(args, executable):
     env={
         "TSAN_OPTIONS": r""""halt_on_error"=1"""
     }
-    completed = subprocess.run([f"./{executable}"], capture_output=True, env=env)
-    if completed.returncode == 66:
+    completed = subprocess.run([executable], capture_output=True, env=env)
+    if completed.returncode == 66 and b"WARNING: ThreadSanitizer: data race" in completed.stderr:
         return completed.stderr
     else:
         return None
