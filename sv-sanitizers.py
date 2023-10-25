@@ -35,7 +35,7 @@ def compile(args):
 def run_one(args, executable):
     print(".", end="", flush=True)
     env={
-        "TSAN_OPTIONS": r""""halt_on_error"=1"""
+        "TSAN_OPTIONS": r""""exitcode"=66 "halt_on_error"=1 "report_thread_leaks"=0 "report_destroy_locked"=0 "report_signal_unsafe"=0"""
     }
     completed = subprocess.run([executable], capture_output=True, env=env)
     if completed.returncode == 66 and b"WARNING: ThreadSanitizer: data race" in completed.stderr:
