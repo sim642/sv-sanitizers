@@ -3,6 +3,7 @@
 import argparse
 import subprocess
 from pathlib import Path
+import sys
 
 
 def parse_args():
@@ -46,7 +47,8 @@ def run(args, executable):
     while True:
         result = run_one(args, executable)
         if result is not None:
-            print(result.decode("utf-8"))
+            sys.stderr.buffer.write(result)
+            sys.stderr.flush()
             return "false"
 
 
