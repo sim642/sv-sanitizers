@@ -6,12 +6,16 @@ from pathlib import Path
 import sys
 
 
+VERSION="0.1.0"
+
+
 def parse_args():
     parser = argparse.ArgumentParser(description="SV-COMP wrapper for sanitizers")
 
     parser.add_argument("-p", "--property", type=str, required=True)
     parser.add_argument("-d", "--data-model", type=str, choices=["ILP32", "LP64"], default="LP64")
     parser.add_argument("program", type=str)
+    parser.add_argument("-v", "--version", action="version", version=VERSION)
 
     args = parser.parse_args()
     return args
