@@ -20,12 +20,22 @@ def parse_args():
     args = parser.parse_args()
     return args
 
-def compile(args):
-    gcc_args = ["gcc", "-g", "sv-comp.c", args.program, "-lm"]
-    if args.property == "no-data-race":
-        gcc_args += ["-fsanitize=thread"]
+def parse_property(property):
+    if property == "no-data-race":
+        return "no-data-race"
+    elif Path(property).is_file():
+        text = Path(property).read_text()
+        if text.startswith("""CHECK( init(main()), LTL(G ! data-race) )"""):
+            return "no-data-race"
+        else:
+            raise RuntimeError("unsupported property")
     else:
         raise RuntimeError("unsupported property")
+
+def compile(args):
+    gcc_args = ["gcc", "-g", "sv-comp.c", args.program, "-lm"]
+    if parse_property(args.property) == "no-data-race":
+        gcc_args += ["-fsanitize=thread"]
     if args.data_model == "ILP32":
         gcc_args += ["-m32"]
     else:
