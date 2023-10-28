@@ -3,6 +3,7 @@
 #include <unistd.h>
 #include <math.h>
 #include <stdbool.h>
+#include <pthread.h>
 
 // can't srand at the beginning of main, so GCC constructor
 __attribute__((constructor)) static void __sv_sanitizers_srand()  {
@@ -108,4 +109,14 @@ unsigned __VERIFIER_nondet_unsigned() {
 
 unsigned short __VERIFIER_nondet_ushort() {
   return fabs(__sv_sanitizers_marsaglia() * 20);
+}
+
+pthread_mutex_t __sv_sanitizers_atomic = PTHREAD_MUTEX_INITIALIZER;
+
+void __VERIFIER_atomic_begin() {
+  pthread_mutex_lock(&__sv_sanitizers_atomic);
+}
+
+void __VERIFIER_atomic_end() {
+  pthread_mutex_unlock(&__sv_sanitizers_atomic);
 }
