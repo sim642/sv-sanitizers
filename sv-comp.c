@@ -47,7 +47,7 @@ int __VERIFIER_nondet_int() {
 }
 
 __int128 __VERIFIER_nondet_int128() {
-  return __sv_sanitizers_marsaglia() * 100;
+  return __sv_sanitizers_marsaglia() * 40;
 }
 
 float __VERIFIER_nondet_float() {
@@ -58,8 +58,54 @@ double __VERIFIER_nondet_double() {
   return __sv_sanitizers_marsaglia() * 20;
 }
 
-// loff_t
+// TODO: loff_t
 
 long __VERIFIER_nondet_long() {
   return __sv_sanitizers_marsaglia() * 20;
+}
+
+long long __VERIFIER_nondet_longlong() {
+  return __sv_sanitizers_marsaglia() * 30;
+}
+
+// TODO: pchar
+// TODO: pthread_t
+// TODO: sector_t
+
+short __VERIFIER_nondet_short() {
+  return __sv_sanitizers_marsaglia() * 10;
+}
+
+size_t __VERIFIER_nondet_size_t() {
+  return __sv_sanitizers_marsaglia() * 20;
+}
+
+// u32
+
+unsigned char __VERIFIER_nondet_uchar() {
+  return rand() % 256;
+}
+
+unsigned int __VERIFIER_nondet_uint() {
+  return fabs(__sv_sanitizers_marsaglia() * 20);
+}
+
+__uint128_t __VERIFIER_nondet_uint128() {
+  return fabs(__sv_sanitizers_marsaglia() * 80);
+}
+
+unsigned long __VERIFIER_nondet_ulong() {
+  return fabs(__sv_sanitizers_marsaglia() * 40);
+}
+
+unsigned long long __VERIFIER_nondet_ulonglong() {
+  return fabs(__sv_sanitizers_marsaglia() * 60);
+}
+
+unsigned __VERIFIER_nondet_unsigned() {
+  return fabs(__sv_sanitizers_marsaglia() * 20);
+}
+
+unsigned short __VERIFIER_nondet_ushort() {
+  return fabs(__sv_sanitizers_marsaglia() * 20);
 }
