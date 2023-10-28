@@ -1,6 +1,8 @@
 #include <stdlib.h>
 #include <time.h>
 #include <unistd.h>
+#include <math.h>
+#include <stdbool.h>
 
 // can't srand at the beginning of main, so GCC constructor
 __attribute__((constructor)) static void __sv_sanitizers_srand()  {
@@ -8,6 +10,30 @@ __attribute__((constructor)) static void __sv_sanitizers_srand()  {
   srand(time(NULL) ^ getpid());
 }
 
+__thread bool __sv_sanitizers_marsaglia_spare_available = false;
+__thread double __sv_sanitizers_marsaglia_spare;
+
+double __sv_sanitizers_marsaglia() {
+  if (__sv_sanitizers_marsaglia_spare_available) {
+    __sv_sanitizers_marsaglia_spare_available = false;
+    return __sv_sanitizers_marsaglia_spare;
+  }
+  else {
+    double x, y, r2;
+    do {
+      x = 2.0 * (rand() / ((double)RAND_MAX)) - 1.0;
+      y = 2.0 * (rand() / ((double)RAND_MAX)) - 1.0;
+      r2 = x * x + y * y;
+    }
+    while (r2 > 1.0 || r2 == 0.0);
+
+    const double mult = sqrt(-2 * log(r2) / r2);
+    __sv_sanitizers_marsaglia_spare = x * mult;
+    __sv_sanitizers_marsaglia_spare_available = true;
+    return y * mult;
+  }
+}
+
 int __VERIFIER_nondet_int() {
-  return rand() % 10;
+  return __sv_sanitizers_marsaglia() * 10;
 }

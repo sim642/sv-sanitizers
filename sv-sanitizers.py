@@ -17,7 +17,7 @@ def parse_args():
     return args
 
 def compile(args):
-    gcc_args = ["gcc", "-g", "sv-comp.c", args.program]
+    gcc_args = ["gcc", "-g", "sv-comp.c", args.program, "-lm"]
     if args.property == "no-data-race":
         gcc_args += ["-fsanitize=thread"]
     else:
