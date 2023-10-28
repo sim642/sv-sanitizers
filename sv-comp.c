@@ -47,9 +47,11 @@ int __VERIFIER_nondet_int() {
   return __sv_sanitizers_marsaglia() * 10;
 }
 
+#ifdef __SIZEOF_INT128__
 __int128 __VERIFIER_nondet_int128() {
   return __sv_sanitizers_marsaglia() * 40;
 }
+#endif
 
 float __VERIFIER_nondet_float() {
   return __sv_sanitizers_marsaglia() * 10;
@@ -91,9 +93,11 @@ unsigned int __VERIFIER_nondet_uint() {
   return fabs(__sv_sanitizers_marsaglia() * 20);
 }
 
+#ifdef __SIZEOF_INT128__
 __uint128_t __VERIFIER_nondet_uint128() {
   return fabs(__sv_sanitizers_marsaglia() * 80);
 }
+#endif
 
 unsigned long __VERIFIER_nondet_ulong() {
   return fabs(__sv_sanitizers_marsaglia() * 40);
