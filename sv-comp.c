@@ -34,6 +34,32 @@ double __sv_sanitizers_marsaglia() {
   }
 }
 
+bool __VERIFIER_nondet_bool() {
+  return rand() % 2;
+}
+
+char __VERIFIER_nondet_char() {
+  return rand() % 256;
+}
+
 int __VERIFIER_nondet_int() {
   return __sv_sanitizers_marsaglia() * 10;
+}
+
+__int128 __VERIFIER_nondet_int128() {
+  return __sv_sanitizers_marsaglia() * 100;
+}
+
+float __VERIFIER_nondet_float() {
+  return __sv_sanitizers_marsaglia() * 10;
+}
+
+double __VERIFIER_nondet_double() {
+  return __sv_sanitizers_marsaglia() * 20;
+}
+
+// loff_t
+
+long __VERIFIER_nondet_long() {
+  return __sv_sanitizers_marsaglia() * 20;
 }
