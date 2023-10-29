@@ -36,10 +36,11 @@ def compile(args):
     gcc_args = ["gcc", "-g", "sv-comp.c", args.program, "-lm"]
     if parse_property(args.property) == "no-data-race":
         gcc_args += ["-fsanitize=thread"]
-    if args.data_model == "ILP32":
-        gcc_args += ["-m32"]
-    else:
-        gcc_args += ["-m64"]
+    # ignore data model because tsan is 64bit only
+    # if args.data_model == "ILP32":
+    #     gcc_args += ["-m32"]
+    # else:
+    #     gcc_args += ["-m64"]
     completed = subprocess.run(gcc_args)
     if completed.returncode == 0:
         return Path("a.out").absolute()
