@@ -78,12 +78,12 @@ async def run_worker(args, executable):
 
 async def run(args, executable):
     tasks = [asyncio.create_task(run_worker(args, executable), name=f"worker-{i}") for i in range(args.jobs)]
-    done, _ = await asyncio.wait(tasks, return_when="FIRST_COMPLETED")
+    done, pending = await asyncio.wait(tasks, return_when="FIRST_COMPLETED")
     global stop
     stop = True
     for process in processes:
         process.kill()
-    for task in tasks:
+    for task in pending:
         task.cancel()
     return done.pop().result()
 
