@@ -4,6 +4,7 @@ import argparse
 import subprocess
 from pathlib import Path
 import sys
+import asyncio
 
 
 VERSION="0.1.0"
@@ -32,7 +33,7 @@ def parse_property(property):
     else:
         raise RuntimeError("unsupported property")
 
-def compile(args):
+async def compile(args):
     gcc_args = ["gcc", "-g", "sv-comp.c", args.program, "-lm"]
     if parse_property(args.property) == "no-data-race":
         gcc_args += ["-fsanitize=thread"]
@@ -41,33 +42,38 @@ def compile(args):
     #     gcc_args += ["-m32"]
     # else:
     #     gcc_args += ["-m64"]
-    completed = subprocess.run(gcc_args)
+    completed = await asyncio.create_subprocess_exec(*gcc_args)
+    await completed.wait()
     if completed.returncode == 0:
         return Path("a.out").absolute()
     else:
         raise RuntimeError("compile error")
 
-def run_one(args, executable):
+async def run_one(args, executable):
     print(".", end="", flush=True)
     env={
         "TSAN_OPTIONS": r""""exitcode"=66 "halt_on_error"=1 "report_thread_leaks"=0 "report_destroy_locked"=0 "report_signal_unsafe"=0 suppressions=suppressions.txt"""
     }
-    completed = subprocess.run([executable], capture_output=True, env=env)
-    if completed.returncode == 66 and b"WARNING: ThreadSanitizer: data race" in completed.stderr:
-        return completed.stderr
+    completed = await asyncio.create_subprocess_exec(executable, stderr=asyncio.subprocess.PIPE, env=env)
+    _, stderr = await completed.communicate()
+    if completed.returncode == 66 and b"WARNING: ThreadSanitizer: data race" in stderr:
+        return stderr
     else:
         return None
 
-def run(args, executable):
+async def run(args, executable):
     while True:
-        result = run_one(args, executable)
+        result = await run_one(args, executable)
         if result is not None:
             sys.stderr.buffer.write(result)
             sys.stderr.flush()
             return "false"
 
 
-args = parse_args()
-executable = compile(args)
-result = run(args, executable)
-print(f"SV-COMP result: {result}")
+async def main():
+    args = parse_args()
+    executable = await compile(args)
+    result = await run(args, executable)
+    print(f"SV-COMP result: {result}")
+
+asyncio.run(main())
