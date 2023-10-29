@@ -58,16 +58,17 @@ async def run_one(args, executable):
     env={
         "TSAN_OPTIONS": r""""exitcode"=66 "halt_on_error"=1 "report_thread_leaks"=0 "report_destroy_locked"=0 "report_signal_unsafe"=0 suppressions=suppressions.txt"""
     }
-    process = await asyncio.create_subprocess_exec(executable, stderr=asyncio.subprocess.PIPE, env=env)
-    processes.add(process)
-    try:
-        _, stderr = await process.communicate()
-        if process.returncode == 66 and b"WARNING: ThreadSanitizer: data race" in stderr:
-            return ("false", stderr)
-        else:
-            return None
-    finally:
-        processes.remove(process)
+    with open("/dev/urandom", "r") as urandom:
+        process = await asyncio.create_subprocess_exec(executable, stdin=urandom, stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.PIPE, env=env)
+        processes.add(process)
+        try:
+            _, stderr = await process.communicate()
+            if process.returncode == 66 and b"WARNING: ThreadSanitizer: data race" in stderr:
+                return ("false", stderr)
+            else:
+                return None
+        finally:
+            processes.remove(process)
 
 async def run_worker(args, executable):
     while not stop:
