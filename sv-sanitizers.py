@@ -16,6 +16,7 @@ def parse_args():
     parser.add_argument("-p", "--property", type=str, required=True)
     parser.add_argument("-d", "--data-model", type=str, choices=["ILP32", "LP64"], default="LP64")
     parser.add_argument("program", type=str)
+    parser.add_argument("-j", "--jobs", type=int, default=1)
     parser.add_argument("-v", "--version", action="version", version=VERSION)
 
     args = parser.parse_args()
@@ -42,14 +43,14 @@ async def compile(args):
     #     gcc_args += ["-m32"]
     # else:
     #     gcc_args += ["-m64"]
-    completed = await asyncio.create_subprocess_exec(*gcc_args)
-    await completed.wait()
-    if completed.returncode == 0:
+    process = await asyncio.create_subprocess_exec(*gcc_args)
+    await process.wait()
+    if process.returncode == 0:
         return Path("a.out").absolute()
     else:
         raise RuntimeError("compile error")
 
-procs = set()
+processes = set()
 stop = False
 
 async def run_one(args, executable):
@@ -57,43 +58,42 @@ async def run_one(args, executable):
     env={
         "TSAN_OPTIONS": r""""exitcode"=66 "halt_on_error"=1 "report_thread_leaks"=0 "report_destroy_locked"=0 "report_signal_unsafe"=0 suppressions=suppressions.txt"""
     }
-    completed = await asyncio.create_subprocess_exec(executable, stderr=asyncio.subprocess.PIPE, env=env)
-    procs.add(completed)
-    _, stderr = await completed.communicate()
-    if completed.returncode == 66 and b"WARNING: ThreadSanitizer: data race" in stderr:
-        procs.remove(completed)
-        return stderr
-    else:
-        procs.remove(completed)
-        return None
+    process = await asyncio.create_subprocess_exec(executable, stderr=asyncio.subprocess.PIPE, env=env)
+    processes.add(process)
+    try:
+        _, stderr = await process.communicate()
+        if process.returncode == 66 and b"WARNING: ThreadSanitizer: data race" in stderr:
+            return ("false", stderr)
+        else:
+            return None
+    finally:
+        processes.remove(process)
 
-def do_stop():
-    global stop
-    stop = True
-    for proc in procs:
-        proc.kill()
-
-async def run_thread(args, executable):
+async def run_worker(args, executable):
     while not stop:
         result = await run_one(args, executable)
         if result is not None:
-            sys.stderr.buffer.write(result)
-            sys.stderr.flush()
-            return "false"
+            return result
+    return None
 
 async def run(args, executable):
+    tasks = [asyncio.create_task(run_worker(args, executable), name=f"worker-{i}") for i in range(args.jobs)]
+    done, _ = await asyncio.wait(tasks, return_when="FIRST_COMPLETED")
     global stop
-    tasks = [asyncio.create_task(run_thread(args, executable)) for i in range(4)]
-    (done, pending) = await asyncio.wait(tasks, return_when="FIRST_COMPLETED")
-    do_stop()
+    stop = True
+    for process in processes:
+        process.kill()
+    for task in tasks:
+        task.cancel()
     return done.pop().result()
-
-
 
 async def main():
     args = parse_args()
     executable = await compile(args)
-    result = await run(args, executable)
+    result, output = await run(args, executable)
+    print()
+    sys.stderr.buffer.write(output)
+    sys.stderr.flush()
     print(f"SV-COMP result: {result}")
 
 asyncio.run(main())
