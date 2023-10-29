@@ -49,25 +49,45 @@ async def compile(args):
     else:
         raise RuntimeError("compile error")
 
+procs = set()
+stop = False
+
 async def run_one(args, executable):
     print(".", end="", flush=True)
     env={
         "TSAN_OPTIONS": r""""exitcode"=66 "halt_on_error"=1 "report_thread_leaks"=0 "report_destroy_locked"=0 "report_signal_unsafe"=0 suppressions=suppressions.txt"""
     }
     completed = await asyncio.create_subprocess_exec(executable, stderr=asyncio.subprocess.PIPE, env=env)
+    procs.add(completed)
     _, stderr = await completed.communicate()
     if completed.returncode == 66 and b"WARNING: ThreadSanitizer: data race" in stderr:
+        procs.remove(completed)
         return stderr
     else:
+        procs.remove(completed)
         return None
 
-async def run(args, executable):
-    while True:
+def do_stop():
+    global stop
+    stop = True
+    for proc in procs:
+        proc.kill()
+
+async def run_thread(args, executable):
+    while not stop:
         result = await run_one(args, executable)
         if result is not None:
             sys.stderr.buffer.write(result)
             sys.stderr.flush()
             return "false"
+
+async def run(args, executable):
+    global stop
+    tasks = [asyncio.create_task(run_thread(args, executable)) for i in range(4)]
+    (done, pending) = await asyncio.wait(tasks, return_when="FIRST_COMPLETED")
+    do_stop()
+    return done.pop().result()
+
 
 
 async def main():
