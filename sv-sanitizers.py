@@ -27,10 +27,18 @@ def parse_property(property):
         return "no-data-race"
     elif property == "valid-memsafety":
         return "valid-memsafety"
+    elif property == "valid-memcleanup":
+        return "valid-memcleanup"
     elif Path(property).is_file():
         text = Path(property).read_text()
         if text.startswith("""CHECK( init(main()), LTL(G ! data-race) )"""):
             return "no-data-race"
+        elif text.startswith("""CHECK( init(main()), LTL(G valid-free) )
+CHECK( init(main()), LTL(G valid-deref) )
+CHECK( init(main()), LTL(G valid-memtrack) )"""):
+            return "valid-memsafety"
+        elif text.startswith("""CHECK( init(main()), LTL(G valid-memcleanup) )"""):
+            return "valid-memcleanup"
         else:
             raise RuntimeError("unsupported property")
     else:
@@ -38,15 +46,15 @@ def parse_property(property):
 
 async def compile(args):
     gcc_args = ["gcc", "-g", "sv-comp.c", args.program, "-lm"]
-    if parse_property(args.property) == "no-data-race":
+    if args.property == "no-data-race":
         gcc_args += ["-fsanitize=thread"]
-    if parse_property(args.property) == "valid-memsafety":
+        # ignore data model because tsan is 64bit only
+    elif args.property == "valid-memsafety" or args.property == "valid-memcleanup":
         gcc_args += ["-fsanitize=address"]
-    # ignore data model because tsan is 64bit only
-    # if args.data_model == "ILP32":
-    #     gcc_args += ["-m32"]
-    # else:
-    #     gcc_args += ["-m64"]
+        if args.data_model == "ILP32":
+            gcc_args += ["-m32"]
+        else:
+            gcc_args += ["-m64"]
     process = await asyncio.create_subprocess_exec(*gcc_args)
     await process.wait()
     if process.returncode == 0:
@@ -70,26 +78,23 @@ async def run_one(args, executable):
             _, stderr = await process.communicate()
             if process.returncode == 66 and b"WARNING: ThreadSanitizer: data race" in stderr:
                 return ("false", stderr)
-            elif b"ERROR: AddressSanitizer: dynamic-stack-buffer-overflow" in stderr:
+            elif b"ERROR: AddressSanitizer: dynamic-stack-buffer-overflow" in stderr \
+                or b"ERROR: AddressSanitizer: heap-use-after-free" in stderr \
+                or b"ERROR: AddressSanitizer: heap-use-after-free" in stderr \
+                or b"ERROR: AddressSanitizer: heap-buffer-overflow" in stderr \
+                or b"ERROR: AddressSanitizer: stack-buffer-overflow" in stderr \
+                or b"ERROR: AddressSanitizer: global-buffer-overflow" in stderr \
+                or b"ERROR: AddressSanitizer: stack-use-after-scope" in stderr \
+                or b"ERROR: AddressSanitizer: stack-use-after-return" in stderr:
                 return ("false(valid-deref)", stderr)
-            elif b"ERROR: AddressSanitizer: heap-use-after-free" in stderr:
-                return ("false(valid-deref)", stderr)
-            elif b"ERROR: AddressSanitizer: heap-buffer-overflow" in stderr:
-                return ("false(valid-deref)", stderr)
-            elif b"ERROR: AddressSanitizer: stack-buffer-overflow" in stderr:
-                return ("false(valid-deref)", stderr)
-            elif b"ERROR: AddressSanitizer: global-buffer-overflow" in stderr:
-                return ("false(valid-deref)", stderr)
-            elif b"ERROR: AddressSanitizer: stack-use-after-scope" in stderr:
-                return ("false(valid-deref)", stderr)
-            elif b"ERROR: AddressSanitizer: stack-use-after-return" in stderr:
-                return ("false(valid-deref)", stderr)
-            elif b"ERROR: AddressSanitizer: attempting double-free" in stderr:
-                return ("false(valid-free)", stderr)
-            elif b"ERROR: AddressSanitizer: attempting free on address which was not malloc()-ed" in stderr:
+            elif b"ERROR: AddressSanitizer: attempting double-free" in stderr \
+                or b"ERROR: AddressSanitizer: attempting free on address which was not malloc()-ed" in stderr:
                 return ("false(valid-free)", stderr)
             elif b"ERROR: LeakSanitizer: detected memory leaks" in stderr:
-                return ("false(valid-memtrack)", stderr)
+                if args.property == "valid-memcleanup":
+                    return ("false", stderr)
+                else:
+                    return ("false(valid-memtrack)", stderr)
             else:
                 return None
         finally:
@@ -115,6 +120,7 @@ async def run(args, executable):
 
 async def main():
     args = parse_args()
+    args.property = parse_property(args.property)
     executable = await compile(args)
     result, output = await run(args, executable)
     print()
