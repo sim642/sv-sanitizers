@@ -25,6 +25,8 @@ def parse_args():
 def parse_property(property):
     if property == "no-data-race":
         return "no-data-race"
+    elif property == "valid-memsafety":
+        return "valid-memsafety"
     elif Path(property).is_file():
         text = Path(property).read_text()
         if text.startswith("""CHECK( init(main()), LTL(G ! data-race) )"""):
@@ -38,6 +40,8 @@ async def compile(args):
     gcc_args = ["gcc", "-g", "sv-comp.c", args.program, "-lm"]
     if parse_property(args.property) == "no-data-race":
         gcc_args += ["-fsanitize=thread"]
+    if parse_property(args.property) == "valid-memsafety":
+        gcc_args += ["-fsanitize=address"]
     # ignore data model because tsan is 64bit only
     # if args.data_model == "ILP32":
     #     gcc_args += ["-m32"]
@@ -56,7 +60,8 @@ stop = False
 async def run_one(args, executable):
     print(".", end="", flush=True)
     env={
-        "TSAN_OPTIONS": r""""exitcode"=66 "halt_on_error"=1 "report_thread_leaks"=0 "report_destroy_locked"=0 "report_signal_unsafe"=0 suppressions=suppressions.txt"""
+        "TSAN_OPTIONS": r""""exitcode"=66 "halt_on_error"=1 "report_thread_leaks"=0 "report_destroy_locked"=0 "report_signal_unsafe"=0 suppressions=suppressions.txt""",
+        "ASAN_OPTIONS": r""""halt_on_error"=true "detect_leaks"=1 detect_stack_use_after_return=1"""
     }
     with open("/dev/urandom", "r") as urandom:
         process = await asyncio.create_subprocess_exec(executable, stdin=urandom, stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.PIPE, env=env)
@@ -65,6 +70,26 @@ async def run_one(args, executable):
             _, stderr = await process.communicate()
             if process.returncode == 66 and b"WARNING: ThreadSanitizer: data race" in stderr:
                 return ("false", stderr)
+            elif b"ERROR: AddressSanitizer: dynamic-stack-buffer-overflow" in stderr:
+                return ("false(valid-deref)", stderr)
+            elif b"ERROR: AddressSanitizer: heap-use-after-free" in stderr:
+                return ("false(valid-deref)", stderr)
+            elif b"ERROR: AddressSanitizer: heap-buffer-overflow" in stderr:
+                return ("false(valid-deref)", stderr)
+            elif b"ERROR: AddressSanitizer: stack-buffer-overflow" in stderr:
+                return ("false(valid-deref)", stderr)
+            elif b"ERROR: AddressSanitizer: global-buffer-overflow" in stderr:
+                return ("false(valid-deref)", stderr)
+            elif b"ERROR: AddressSanitizer: stack-use-after-scope" in stderr:
+                return ("false(valid-deref)", stderr)
+            elif b"ERROR: AddressSanitizer: stack-use-after-return" in stderr:
+                return ("false(valid-deref)", stderr)
+            elif b"ERROR: AddressSanitizer: attempting double-free" in stderr:
+                return ("false(valid-free)", stderr)
+            elif b"ERROR: AddressSanitizer: attempting free on address which was not malloc()-ed" in stderr:
+                return ("false(valid-free)", stderr)
+            elif b"ERROR: LeakSanitizer: detected memory leaks" in stderr:
+                return ("false(valid-memtrack)", stderr)
             else:
                 return None
         finally:
