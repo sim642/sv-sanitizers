@@ -161,3 +161,8 @@ cython_debug/
 
 .vscode/
 a.out
+witness.graphml
+sv-sanitizers.zip
+
+*.c
+*.prp
