@@ -87,7 +87,8 @@ async def run_one(args, executable):
                 or b"ERROR: AddressSanitizer: stack-buffer-overflow" in stderr \
                 or b"ERROR: AddressSanitizer: global-buffer-overflow" in stderr \
                 or b"ERROR: AddressSanitizer: stack-use-after-scope" in stderr \
-                or b"ERROR: AddressSanitizer: stack-use-after-return" in stderr:
+                or b"ERROR: AddressSanitizer: stack-use-after-return" in stderr \
+                or b"ERROR: AddressSanitizer: SEGV on unknown address" in stderr:
                 return ("false(valid-deref)", stderr)
             elif b"ERROR: AddressSanitizer: attempting double-free" in stderr \
                 or b"ERROR: AddressSanitizer: attempting free on address which was not malloc()-ed" in stderr:
