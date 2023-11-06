@@ -10,6 +10,7 @@ from datetime import datetime
 
 
 VERSION="0.1.0"
+SCRIPT_DIR = Path(__file__).parent
 
 
 def parse_args():
@@ -47,7 +48,7 @@ CHECK( init(main()), LTL(G valid-memtrack) )"""):
         raise RuntimeError("unsupported property")
 
 async def compile(args):
-    gcc_args = ["gcc", "-g", "sv-comp.c", args.program, "-lm"]
+    gcc_args = ["gcc", "-g", str(SCRIPT_DIR / "sv-comp.c"), args.program, "-lm"]
     if args.property == "no-data-race":
         gcc_args += ["-fsanitize=thread"]
         # ignore data model because tsan is 64bit only
@@ -70,7 +71,7 @@ stop = False
 async def run_one(args, executable):
     print(".", end="", flush=True)
     env={
-        "TSAN_OPTIONS": r""""exitcode"=66 "halt_on_error"=1 "report_thread_leaks"=0 "report_destroy_locked"=0 "report_signal_unsafe"=0 suppressions=suppressions.txt""",
+        "TSAN_OPTIONS": f""""exitcode"=66 "halt_on_error"=1 "report_thread_leaks"=0 "report_destroy_locked"=0 "report_signal_unsafe"=0 suppressions={str(SCRIPT_DIR / "suppressions.txt")}""",
         "ASAN_OPTIONS": r""""halt_on_error"=true "detect_leaks"=1 detect_stack_use_after_return=1"""
     }
     with open("/dev/urandom", "r") as urandom:
