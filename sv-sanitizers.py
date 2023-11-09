@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 
 import argparse
-import subprocess
 from pathlib import Path
 import sys
 import asyncio
