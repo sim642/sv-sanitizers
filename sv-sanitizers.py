@@ -83,9 +83,9 @@ async def run_one(args, executable):
                 return ("false", stderr)
             elif b"ERROR: AddressSanitizer: dynamic-stack-buffer-overflow" in stderr \
                 or b"ERROR: AddressSanitizer: heap-use-after-free" in stderr \
-                or b"ERROR: AddressSanitizer: heap-use-after-free" in stderr \
                 or b"ERROR: AddressSanitizer: heap-buffer-overflow" in stderr \
                 or b"ERROR: AddressSanitizer: stack-buffer-overflow" in stderr \
+                or b"ERROR: AddressSanitizer: stack-buffer-underflow" in stderr \
                 or b"ERROR: AddressSanitizer: global-buffer-overflow" in stderr \
                 or b"ERROR: AddressSanitizer: stack-use-after-scope" in stderr \
                 or b"ERROR: AddressSanitizer: stack-use-after-return" in stderr \
