@@ -8,7 +8,7 @@ import hashlib
 from datetime import datetime
 
 
-VERSION="0.1.0"
+VERSION="0.1.1"
 SCRIPT_DIR = Path(__file__).parent
 
 
