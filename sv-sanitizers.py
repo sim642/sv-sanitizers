@@ -31,6 +31,8 @@ def parse_property(property):
         return "valid-memsafety"
     elif property == "valid-memcleanup":
         return "valid-memcleanup"
+    elif property == "no-overflow":
+        return "no-overflow"
     elif Path(property).is_file():
         text = Path(property).read_text()
         if text.startswith("""CHECK( init(main()), LTL(G ! data-race) )"""):
@@ -41,6 +43,8 @@ CHECK( init(main()), LTL(G valid-memtrack) )"""):
             return "valid-memsafety"
         elif text.startswith("""CHECK( init(main()), LTL(G valid-memcleanup) )"""):
             return "valid-memcleanup"
+        elif text.startswith("""CHECK( init(main()), LTL(G ! overflow) )"""):
+            return "no-overflow"
         else:
             raise RuntimeError("unsupported property")
     else:
@@ -51,8 +55,12 @@ async def compile(args):
     if args.property == "no-data-race":
         gcc_args += ["-fsanitize=thread"]
         # ignore data model because tsan is 64bit only
-    elif args.property == "valid-memsafety" or args.property == "valid-memcleanup":
-        gcc_args += ["-fsanitize=address"]
+    else:
+        if args.property == "valid-memsafety" or args.property == "valid-memcleanup":
+            gcc_args += ["-fsanitize=address"]
+        elif args.property == "no-overflow":
+            gcc_args += ["-fsanitize=signed-integer-overflow"] #, "-fno-sanitize-recover=signed-integer-overflow"]
+
         if args.data_model == "ILP32":
             gcc_args += ["-m32"]
         else:
@@ -71,7 +79,8 @@ async def run_one(args, executable):
     print(".", end="", flush=True)
     env={
         "TSAN_OPTIONS": f""""exitcode"=66 "halt_on_error"=1 "report_thread_leaks"=0 "report_destroy_locked"=0 "report_signal_unsafe"=0 suppressions={str(SCRIPT_DIR / "suppressions.txt")}""",
-        "ASAN_OPTIONS": r""""halt_on_error"=true "detect_leaks"=1 detect_stack_use_after_return=1"""
+        "ASAN_OPTIONS": r""""halt_on_error"=true "detect_leaks"=1 detect_stack_use_after_return=1""",
+        "UBSAN_OPTIONS": r"""halt_on_error=1 print_stacktrace=1"""
     }
     with open("/dev/urandom", "r") as urandom:
         process = await asyncio.create_subprocess_exec(executable, stdin=urandom, stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.PIPE, env=env)
@@ -98,6 +107,10 @@ async def run_one(args, executable):
                     return ("false", stderr)
                 else:
                     return ("false(valid-memtrack)", stderr)
+            elif b"runtime error: signed integer overflow" in stderr \
+                or b"runtime error: division of" in stderr \
+                or b"runtime error: negation of" in stderr:
+                return ("false", stderr)
             else:
                 return None
         finally:
@@ -126,6 +139,8 @@ def generate_witness(args, result):
         specification = """CHECK( init(main()), LTL(G ! data-race) )"""
     elif args.property == "valid-memcleanup":
         specification = """CHECK( init(main()), LTL(G valid-memcleanup) )"""
+    elif args.property == "no-overflow":
+        specification = """CHECK( init(main()), LTL(G ! overflow) )"""
     elif result == "false(valid-deref)":
         specification = """CHECK( init(main()), LTL(G valid-deref) )"""
     elif result == "false(valid-free)":
