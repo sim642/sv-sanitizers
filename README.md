@@ -8,3 +8,4 @@ Currently supports:
     * `valid-free` property via AddressSanitizer (ASan).
     * `valid-memtrack` property via LeakSanitizer (LSan).
 * `valid-memcleanup` property via LeakSanitizer (LSan).
+* `no-overflow` property via UndefinedBehaviorSanitizer (UBSan).
