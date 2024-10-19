@@ -72,6 +72,17 @@ async def compile(args):
     else:
         raise RuntimeError("compile error")
 
+async def check_symbols(args, executable):
+    if args.property == "no-overflow":
+        process = await asyncio.create_subprocess_exec("nm", executable, stdout=asyncio.subprocess.PIPE)
+        stdout, _ = await process.communicate()
+        if b"__ubsan_" in stdout:
+            return None
+        else:
+            return ("true", stdout)
+    else:
+        return None
+
 processes = set()
 stop = False
 
@@ -217,7 +228,11 @@ async def main():
     args = parse_args()
     args.property = parse_property(args.property)
     executable = await compile(args)
-    result, output = await run(args, executable)
+    result_output = await check_symbols(args, executable)
+    if result_output is None:
+        result, output = await run(args, executable)
+    else:
+        result, output = result_output
     print()
     sys.stderr.buffer.write(output)
     sys.stderr.flush()
