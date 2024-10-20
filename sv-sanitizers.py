@@ -164,6 +164,24 @@ def generate_witness(args, result):
         programhash = hashlib.sha256(file.read()).hexdigest()
     architecture = "32bit" if args.data_model == "ILP32" else "64bit"
     creationtime = datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
+    if result.startswith("false"):
+        witness_type = "violation_witness"
+        witness_content = """<node id="N0">
+      <data key="entry">true</data>
+    </node>
+    <node id="N1">
+      <data key="violation">true</data>
+    </node>
+    <edge id="E0" source="N0" target="N1"/>"""
+    elif result == "true":
+        witness_type = "correctness_witness"
+        witness_content = """<node id="N0">
+      <data key="entry">true</data>
+    </node>
+    <node id="N1"/>
+    <edge id="E0" source="N0" target="N1"/>"""
+    else:
+        raise RuntimeError("unknown result")
     witness = f"""<?xml version="1.0" encoding="UTF-8"?>
 <graphml xmlns="http://graphml.graphdrawing.org/xmlns" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
   <key id="witness-type" for="graph" attr.name="witness-type" attr.type="string"/>
@@ -203,7 +221,7 @@ def generate_witness(args, result):
   <key id="goblintEdge" for="edge" attr.name="goblintEdge" attr.type="string"/>
   <key id="goblintLine" for="edge" attr.name="goblintLine" attr.type="string"/>
   <graph edgedefault="directed">
-    <data key="witness-type">violation_witness</data>
+    <data key="witness-type">{witness_type}</data>
     <data key="sourcecodelang">C</data>
     <data key="producer">sv-sanitizers {VERSION}</data>
     <data key="specification">{specification}</data>
@@ -211,13 +229,7 @@ def generate_witness(args, result):
     <data key="programhash">{programhash}</data>
     <data key="architecture">{architecture}</data>
     <data key="creationtime">{creationtime}</data>
-    <node id="N0">
-      <data key="entry">true</data>
-    </node>
-    <node id="N1">
-      <data key="violation">true</data>
-    </node>
-    <edge id="E0" source="N0" target="N1"/>
+    {witness_content}
   </graph>
 </graphml>
 """
