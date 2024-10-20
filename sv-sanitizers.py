@@ -145,7 +145,7 @@ async def run(args, executable):
         task.cancel()
     return done.pop().result()
 
-def generate_witness(args, result):
+def generate_graphml_witness(args, result):
     if args.property == "no-data-race":
         specification = """CHECK( init(main()), LTL(G ! data-race) )"""
     elif args.property == "valid-memcleanup":
@@ -236,6 +236,73 @@ def generate_witness(args, result):
     with open("witness.graphml", "w") as file:
         file.write(witness)
 
+def generate_yaml_witness(args, result):
+    if args.property == "no-data-race":
+        specification = """CHECK( init(main()), LTL(G ! data-race) )"""
+    elif args.property == "valid-memcleanup":
+        specification = """CHECK( init(main()), LTL(G valid-memcleanup) )"""
+    elif args.property == "no-overflow":
+        specification = """CHECK( init(main()), LTL(G ! overflow) )"""
+    elif result == "false(valid-deref)":
+        specification = """CHECK( init(main()), LTL(G valid-deref) )"""
+    elif result == "false(valid-free)":
+        specification = """CHECK( init(main()), LTL(G valid-free) )"""
+    elif result == "false(valid-memtrack)":
+        specification = """CHECK( init(main()), LTL(G valid-memtrack) )"""
+    else:
+        raise RuntimeError("unknown witness specification")
+    with open(args.program, "rb") as file:
+        programhash = hashlib.sha256(file.read()).hexdigest()
+    creationtime = datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
+    uuid = "TODO"
+    if result.startswith("false"):
+        witness = f"""- entry_type: violation_sequence
+  metadata:
+    format_version: "2.0"
+    uuid: {uuid}
+    creation_time: {creationtime}
+    producer:
+      name: sv-sanitizers
+      version: {VERSION}
+    task:
+      input_files:
+      - {args.program}
+      input_file_hashes:
+        {args.program}: {programhash}
+      data_model: {args.data_model}
+      language: C
+      specification: {specification}
+  content:
+  - segment:
+    - waypoint:
+        type: target
+        action: follow
+        location: TODO
+"""
+    elif result == "true":
+        witness = f"""- entry_type: invariant_set
+  metadata:
+    format_version: "2.0"
+    uuid: {uuid}
+    creation_time: {creationtime}
+    producer:
+      name: sv-sanitizers
+      version: {VERSION}
+    task:
+      input_files:
+      - {args.program}
+      input_file_hashes:
+        {args.program}: {programhash}
+      data_model: {args.data_model}
+      language: C
+      specification: {specification}
+  content: []
+"""
+    else:
+        raise RuntimeError("unknown result")
+    with open("witness.yml", "w") as file:
+        file.write(witness)
+
 async def main():
     args = parse_args()
     args.property = parse_property(args.property)
@@ -249,6 +316,9 @@ async def main():
     sys.stderr.buffer.write(output)
     sys.stderr.flush()
     print(f"SV-COMP result: {result}")
-    generate_witness(args, result)
+    generate_graphml_witness(args, result)
+    generate_yaml_witness(args, result)
 
 asyncio.run(main())
+
+print(sys.argv)
