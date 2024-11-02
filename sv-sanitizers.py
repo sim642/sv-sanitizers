@@ -65,10 +65,13 @@ async def compile(args):
             gcc_args += ["-m32"]
         else:
             gcc_args += ["-m64"]
-    process = await asyncio.create_subprocess_exec(*gcc_args)
-    await process.wait()
+    process = await asyncio.create_subprocess_exec(*gcc_args, stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.PIPE)
+    _, stderr = await process.communicate()
     if process.returncode == 0:
-        return Path("a.out").absolute()
+        if args.property == "no-overflow" and b"integer overflow in expression" in stderr:
+            return (Path("a.out").absolute(), "false", stderr)
+        else:
+            return (Path("a.out").absolute(), None, stderr)
     else:
         raise RuntimeError("compile error")
 
@@ -239,12 +242,13 @@ def generate_witness(args, result):
 async def main():
     args = parse_args()
     args.property = parse_property(args.property)
-    executable = await compile(args)
-    result_output = await check_symbols(args, executable)
-    if result_output is None:
-        result, output = await run(args, executable)
-    else:
-        result, output = result_output
+    executable, result, output = await compile(args)
+    if result is None:
+        result_output = await check_symbols(args, executable)
+        if result_output is None:
+            result, output = await run(args, executable)
+        else:
+            result, output = result_output
     print()
     sys.stderr.buffer.write(output)
     sys.stderr.flush()
