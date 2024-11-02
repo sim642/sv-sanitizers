@@ -59,7 +59,7 @@ async def compile(args):
         if args.property == "valid-memsafety" or args.property == "valid-memcleanup":
             gcc_args += ["-fsanitize=address"]
         elif args.property == "no-overflow":
-            gcc_args += ["-fsanitize=signed-integer-overflow"] #, "-fno-sanitize-recover=signed-integer-overflow"]
+            gcc_args += ["-fsanitize=signed-integer-overflow", "-fsanitize=shift-base"] #, "-fno-sanitize-recover=signed-integer-overflow"]
 
         if args.data_model == "ILP32":
             gcc_args += ["-m32"]
@@ -123,7 +123,8 @@ async def run_one(args, executable):
                     return ("false(valid-memtrack)", stderr)
             elif b"runtime error: signed integer overflow" in stderr \
                 or b"runtime error: division of" in stderr \
-                or b"runtime error: negation of" in stderr:
+                or b"runtime error: negation of" in stderr \
+                or b"runtime error: left shift of" in stderr:
                 return ("false", stderr)
             else:
                 return None
