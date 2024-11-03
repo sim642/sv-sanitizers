@@ -8,7 +8,7 @@ import hashlib
 from datetime import datetime, timezone
 
 
-VERSION="0.2.0"
+VERSION="0.2.1"
 SCRIPT_DIR = Path(__file__).parent
 
 
