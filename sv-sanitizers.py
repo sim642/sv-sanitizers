@@ -69,7 +69,7 @@ async def compile(args):
     _, stderr = await process.communicate()
     if process.returncode == 0:
         if args.property == "no-overflow" and b"integer overflow in expression" in stderr:
-            return (Path("a.out").absolute(), "false", stderr)
+            return (Path("a.out").absolute(), "false(no-overflow)", stderr)
         else:
             return (Path("a.out").absolute(), None, stderr)
     else:
@@ -102,7 +102,7 @@ async def run_one(args, executable):
         try:
             _, stderr = await process.communicate()
             if process.returncode == 66 and b"WARNING: ThreadSanitizer: data race" in stderr:
-                return ("false", stderr)
+                return ("false(no-data-race)", stderr)
             elif b"ERROR: AddressSanitizer: dynamic-stack-buffer-overflow" in stderr \
                 or b"ERROR: AddressSanitizer: heap-use-after-free" in stderr \
                 or b"ERROR: AddressSanitizer: heap-buffer-overflow" in stderr \
@@ -118,14 +118,14 @@ async def run_one(args, executable):
                 return ("false(valid-free)", stderr)
             elif b"ERROR: LeakSanitizer: detected memory leaks" in stderr:
                 if args.property == "valid-memcleanup":
-                    return ("false", stderr)
+                    return ("false(valid-memcleanup)", stderr)
                 else:
                     return ("false(valid-memtrack)", stderr)
             elif b"runtime error: signed integer overflow" in stderr \
                 or b"runtime error: division of" in stderr \
                 or b"runtime error: negation of" in stderr \
                 or b"runtime error: left shift of" in stderr:
-                return ("false", stderr)
+                return ("false(no-overflow)", stderr)
             else:
                 return None
         finally:
