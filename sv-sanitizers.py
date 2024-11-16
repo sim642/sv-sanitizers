@@ -51,7 +51,7 @@ CHECK( init(main()), LTL(G valid-memtrack) )"""):
         raise RuntimeError("unsupported property")
 
 async def compile(args):
-    gcc_args = ["gcc", "-g", str(SCRIPT_DIR / "sv-comp.c"), args.program, "-lm"]
+    gcc_args = ["gcc", "-g", str(SCRIPT_DIR / "sv-comp.c"), args.program, "-lm", "-fgnu89-inline"] # tasks like pthread-ext/03_incdec need gnu inline, hopefully this is fine for others
     if args.property == "no-data-race":
         gcc_args += ["-fsanitize=thread"]
         # ignore data model because tsan is 64bit only
