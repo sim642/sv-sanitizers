@@ -167,7 +167,7 @@ def generate_witness(args, result):
     with open(args.program, "rb") as file:
         programhash = hashlib.sha256(file.read()).hexdigest()
     architecture = "32bit" if args.data_model == "ILP32" else "64bit"
-    creationtime = datetime.now(timezone.utc).replace(microsecond=0).isoformat() + "Z"
+    creationtime = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace('+00:00', 'Z') # https://stackoverflow.com/a/42777551/854540
     if result.startswith("false"):
         witness_type = "violation_witness"
         witness_content = """<node id="N0">
