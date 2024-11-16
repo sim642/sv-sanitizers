@@ -73,7 +73,7 @@ async def compile(args):
         else:
             return (Path("a.out").absolute(), None, stderr)
     else:
-        raise RuntimeError("compile error")
+        return (None, "ERROR (compile)", stderr)
 
 async def check_symbols(args, executable):
     if args.property == "no-overflow":
@@ -254,6 +254,7 @@ async def main():
     sys.stderr.buffer.write(output)
     sys.stderr.flush()
     print(f"SV-COMP result: {result}")
-    generate_witness(args, result)
+    if executable is not None:
+        generate_witness(args, result)
 
 asyncio.run(main())
