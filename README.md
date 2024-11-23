@@ -1,4 +1,4 @@
-# sv-sanitizers
+# SV-sanitizers
 SV-COMP wrapper for sanitizers
 
 Currently supports:

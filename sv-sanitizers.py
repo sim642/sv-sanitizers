@@ -227,7 +227,7 @@ def generate_witness(args, result):
   <graph edgedefault="directed">
     <data key="witness-type">{witness_type}</data>
     <data key="sourcecodelang">C</data>
-    <data key="producer">sv-sanitizers {VERSION}</data>
+    <data key="producer">SV-sanitizers {VERSION}</data>
     <data key="specification">{specification}</data>
     <data key="programfile">{args.program}</data>
     <data key="programhash">{programhash}</data>
