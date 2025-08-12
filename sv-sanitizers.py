@@ -145,7 +145,10 @@ async def run(args, executable):
     global stop
     stop = True
     for process in processes:
-        process.kill()
+        try:
+            process.kill()
+        except ProcessLookupError as ex:
+            pass
     for task in pending:
         task.cancel()
     await asyncio.wait(tasks)
