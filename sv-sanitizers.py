@@ -129,6 +129,7 @@ async def run_one(args, executable):
             else:
                 return None
         finally:
+            await process.wait()
             processes.remove(process)
 
 async def run_worker(args, executable):
@@ -147,6 +148,7 @@ async def run(args, executable):
         process.kill()
     for task in pending:
         task.cancel()
+    await asyncio.wait(tasks)
     return done.pop().result()
 
 def generate_witness(args, result):
