@@ -5,10 +5,10 @@ from pathlib import Path
 import sys
 import asyncio
 import hashlib
-from datetime import datetime
+from datetime import datetime, timezone
 
 
-VERSION="0.1.1-dev"
+VERSION="0.2.3"
 SCRIPT_DIR = Path(__file__).parent
 
 
@@ -51,7 +51,7 @@ CHECK( init(main()), LTL(G valid-memtrack) )"""):
         raise RuntimeError("unsupported property")
 
 async def compile(args):
-    gcc_args = ["gcc", "-g", str(SCRIPT_DIR / "sv-comp.c"), args.program, "-lm"]
+    gcc_args = ["gcc", "-g", str(SCRIPT_DIR / "sv-comp.c"), args.program, "-lm", "-fgnu89-inline"] # tasks like pthread-ext/03_incdec need gnu inline, hopefully this is fine for others
     if args.property == "no-data-race":
         gcc_args += ["-fsanitize=thread"]
         # ignore data model because tsan is 64bit only
@@ -59,18 +59,21 @@ async def compile(args):
         if args.property == "valid-memsafety" or args.property == "valid-memcleanup":
             gcc_args += ["-fsanitize=address"]
         elif args.property == "no-overflow":
-            gcc_args += ["-fsanitize=signed-integer-overflow"] #, "-fno-sanitize-recover=signed-integer-overflow"]
+            gcc_args += ["-fsanitize=signed-integer-overflow", "-fsanitize=shift-base"] #, "-fno-sanitize-recover=signed-integer-overflow"]
 
         if args.data_model == "ILP32":
             gcc_args += ["-m32"]
         else:
             gcc_args += ["-m64"]
-    process = await asyncio.create_subprocess_exec(*gcc_args)
-    await process.wait()
+    process = await asyncio.create_subprocess_exec(*gcc_args, stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.PIPE)
+    _, stderr = await process.communicate()
     if process.returncode == 0:
-        return Path("a.out").absolute()
+        if args.property == "no-overflow" and b"integer overflow in expression" in stderr:
+            return (Path("a.out").absolute(), "false(no-overflow)", stderr)
+        else:
+            return (Path("a.out").absolute(), None, stderr)
     else:
-        raise RuntimeError("compile error")
+        return (None, "ERROR (compile)", stderr)
 
 async def check_symbols(args, executable):
     if args.property == "no-overflow":
@@ -99,7 +102,7 @@ async def run_one(args, executable):
         try:
             _, stderr = await process.communicate()
             if process.returncode == 66 and b"WARNING: ThreadSanitizer: data race" in stderr:
-                return ("false", stderr)
+                return ("false(no-data-race)", stderr)
             elif b"ERROR: AddressSanitizer: dynamic-stack-buffer-overflow" in stderr \
                 or b"ERROR: AddressSanitizer: heap-use-after-free" in stderr \
                 or b"ERROR: AddressSanitizer: heap-buffer-overflow" in stderr \
@@ -115,13 +118,14 @@ async def run_one(args, executable):
                 return ("false(valid-free)", stderr)
             elif b"ERROR: LeakSanitizer: detected memory leaks" in stderr:
                 if args.property == "valid-memcleanup":
-                    return ("false", stderr)
+                    return ("false(valid-memcleanup)", stderr)
                 else:
                     return ("false(valid-memtrack)", stderr)
             elif b"runtime error: signed integer overflow" in stderr \
                 or b"runtime error: division of" in stderr \
-                or b"runtime error: negation of" in stderr:
-                return ("false", stderr)
+                or b"runtime error: negation of" in stderr \
+                or b"runtime error: left shift of" in stderr:
+                return ("false(no-overflow)", stderr)
             else:
                 return None
         finally:
@@ -163,7 +167,7 @@ def generate_graphml_witness(args, result):
     with open(args.program, "rb") as file:
         programhash = hashlib.sha256(file.read()).hexdigest()
     architecture = "32bit" if args.data_model == "ILP32" else "64bit"
-    creationtime = datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
+    creationtime = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace('+00:00', 'Z') # https://stackoverflow.com/a/42777551/854540
     if result.startswith("false"):
         witness_type = "violation_witness"
         witness_content = """<node id="N0">
@@ -223,7 +227,7 @@ def generate_graphml_witness(args, result):
   <graph edgedefault="directed">
     <data key="witness-type">{witness_type}</data>
     <data key="sourcecodelang">C</data>
-    <data key="producer">sv-sanitizers {VERSION}</data>
+    <data key="producer">SV-sanitizers {VERSION}</data>
     <data key="specification">{specification}</data>
     <data key="programfile">{args.program}</data>
     <data key="programhash">{programhash}</data>
@@ -253,7 +257,7 @@ def generate_yaml_witness(args, result):
         raise RuntimeError("unknown witness specification")
     with open(args.program, "rb") as file:
         programhash = hashlib.sha256(file.read()).hexdigest()
-    creationtime = datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
+    creationtime = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace('+00:00', 'Z') # https://stackoverflow.com/a/42777551/854540
     uuid = "TODO"
     if result.startswith("false"):
         witness = f"""- entry_type: violation_sequence
@@ -306,18 +310,20 @@ def generate_yaml_witness(args, result):
 async def main():
     args = parse_args()
     args.property = parse_property(args.property)
-    executable = await compile(args)
-    result_output = await check_symbols(args, executable)
-    if result_output is None:
-        result, output = await run(args, executable)
-    else:
-        result, output = result_output
+    executable, result, output = await compile(args)
+    if result is None:
+        result_output = await check_symbols(args, executable)
+        if result_output is None:
+            result, output = await run(args, executable)
+        else:
+            result, output = result_output
     print()
     sys.stderr.buffer.write(output)
     sys.stderr.flush()
     print(f"SV-COMP result: {result}")
-    generate_graphml_witness(args, result)
-    generate_yaml_witness(args, result)
+    if executable is not None:
+        generate_graphml_witness(args, result)
+        generate_yaml_witness(args, result)
 
 asyncio.run(main())
 

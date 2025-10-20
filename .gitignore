@@ -166,3 +166,4 @@ sv-sanitizers.zip
 
 *.c
 *.prp
+!smoketests/
