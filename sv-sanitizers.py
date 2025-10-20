@@ -19,6 +19,7 @@ def parse_args():
     parser.add_argument("-d", "--data-model", type=str, choices=["ILP32", "LP64"], default="LP64")
     parser.add_argument("program", type=str)
     parser.add_argument("-j", "--jobs", type=int, default=1)
+    parser.add_argument("-t", "--timeout", type=int, required=False)
     parser.add_argument("-v", "--version", action="version", version=VERSION)
 
     args = parser.parse_args()
@@ -129,6 +130,7 @@ async def run_one(args, executable):
             else:
                 return None
         finally:
+            await process.wait()
             processes.remove(process)
 
 async def run_worker(args, executable):
@@ -140,14 +142,18 @@ async def run_worker(args, executable):
 
 async def run(args, executable):
     tasks = [asyncio.create_task(run_worker(args, executable), name=f"worker-{i}") for i in range(args.jobs)]
-    done, pending = await asyncio.wait(tasks, return_when="FIRST_COMPLETED")
+    done, pending = await asyncio.wait(tasks, return_when="FIRST_COMPLETED", timeout=args.timeout)
     global stop
     stop = True
     for process in processes:
-        process.kill()
+        try:
+            process.kill()
+        except ProcessLookupError as ex:
+            pass
     for task in pending:
         task.cancel()
-    return done.pop().result()
+    await asyncio.wait(tasks)
+    return done.pop().result() if done else ('true', b'')
 
 def generate_witness(args, result):
     if args.property == "no-data-race":
