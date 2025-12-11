@@ -6,6 +6,7 @@ import sys
 import asyncio
 import hashlib
 from datetime import datetime, timezone
+from uuid import uuid4
 
 
 VERSION="0.2.3"
@@ -249,7 +250,7 @@ def generate_yaml_witness(args, result):
     with open(args.program, "rb") as file:
         programhash = hashlib.sha256(file.read()).hexdigest()
     creationtime = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace('+00:00', 'Z') # https://stackoverflow.com/a/42777551/854540
-    uuid = "TODO"
+    uuid = uuid4()
     if result.startswith("false"):
         witness = f"""- entry_type: violation_sequence
   metadata:
