@@ -50,6 +50,23 @@ CHECK( init(main()), LTL(G valid-memtrack) )"""):
     else:
         raise RuntimeError("unsupported property")
 
+def determine_witness_specification(args, result):
+    if args.property == "no-data-race":
+        specification = """CHECK( init(main()), LTL(G ! data-race) )"""
+    elif args.property == "valid-memcleanup":
+        specification = """CHECK( init(main()), LTL(G valid-memcleanup) )"""
+    elif args.property == "no-overflow":
+        specification = """CHECK( init(main()), LTL(G ! overflow) )"""
+    elif result == "false(valid-deref)":
+        specification = """CHECK( init(main()), LTL(G valid-deref) )"""
+    elif result == "false(valid-free)":
+        specification = """CHECK( init(main()), LTL(G valid-free) )"""
+    elif result == "false(valid-memtrack)":
+        specification = """CHECK( init(main()), LTL(G valid-memtrack) )"""
+    else:
+        raise RuntimeError("unknown witness specification")
+    return specification
+
 async def compile(args):
     gcc_args = ["gcc", "-g", str(SCRIPT_DIR / "sv-comp.c"), args.program, "-lm", "-fgnu89-inline"] # tasks like pthread-ext/03_incdec need gnu inline, hopefully this is fine for others
     if args.property == "no-data-race":
@@ -150,20 +167,7 @@ async def run(args, executable):
     return done.pop().result()
 
 def generate_graphml_witness(args, result):
-    if args.property == "no-data-race":
-        specification = """CHECK( init(main()), LTL(G ! data-race) )"""
-    elif args.property == "valid-memcleanup":
-        specification = """CHECK( init(main()), LTL(G valid-memcleanup) )"""
-    elif args.property == "no-overflow":
-        specification = """CHECK( init(main()), LTL(G ! overflow) )"""
-    elif result == "false(valid-deref)":
-        specification = """CHECK( init(main()), LTL(G valid-deref) )"""
-    elif result == "false(valid-free)":
-        specification = """CHECK( init(main()), LTL(G valid-free) )"""
-    elif result == "false(valid-memtrack)":
-        specification = """CHECK( init(main()), LTL(G valid-memtrack) )"""
-    else:
-        raise RuntimeError("unknown witness specification")
+    specification = determine_witness_specification(args, result)
     with open(args.program, "rb") as file:
         programhash = hashlib.sha256(file.read()).hexdigest()
     architecture = "32bit" if args.data_model == "ILP32" else "64bit"
@@ -241,20 +245,7 @@ def generate_graphml_witness(args, result):
         file.write(witness)
 
 def generate_yaml_witness(args, result):
-    if args.property == "no-data-race":
-        specification = """CHECK( init(main()), LTL(G ! data-race) )"""
-    elif args.property == "valid-memcleanup":
-        specification = """CHECK( init(main()), LTL(G valid-memcleanup) )"""
-    elif args.property == "no-overflow":
-        specification = """CHECK( init(main()), LTL(G ! overflow) )"""
-    elif result == "false(valid-deref)":
-        specification = """CHECK( init(main()), LTL(G valid-deref) )"""
-    elif result == "false(valid-free)":
-        specification = """CHECK( init(main()), LTL(G valid-free) )"""
-    elif result == "false(valid-memtrack)":
-        specification = """CHECK( init(main()), LTL(G valid-memtrack) )"""
-    else:
-        raise RuntimeError("unknown witness specification")
+    specification = determine_witness_specification(args, result)
     with open(args.program, "rb") as file:
         programhash = hashlib.sha256(file.read()).hexdigest()
     creationtime = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace('+00:00', 'Z') # https://stackoverflow.com/a/42777551/854540
