@@ -162,6 +162,7 @@ cython_debug/
 .vscode/
 a.out
 witness.graphml
+witness.yml
 sv-sanitizers.zip
 
 *.c

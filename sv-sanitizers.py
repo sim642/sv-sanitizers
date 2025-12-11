@@ -6,6 +6,7 @@ import sys
 import asyncio
 import hashlib
 from datetime import datetime, timezone
+from uuid import uuid4
 
 
 VERSION="0.2.4"
@@ -49,6 +50,23 @@ CHECK( init(main()), LTL(G valid-memtrack) )"""):
             raise RuntimeError("unsupported property")
     else:
         raise RuntimeError("unsupported property")
+
+def determine_witness_specification(args, result):
+    if args.property == "no-data-race":
+        specification = """CHECK( init(main()), LTL(G ! data-race) )"""
+    elif args.property == "valid-memcleanup":
+        specification = """CHECK( init(main()), LTL(G valid-memcleanup) )"""
+    elif args.property == "no-overflow":
+        specification = """CHECK( init(main()), LTL(G ! overflow) )"""
+    elif result == "false(valid-deref)":
+        specification = """CHECK( init(main()), LTL(G valid-deref) )"""
+    elif result == "false(valid-free)":
+        specification = """CHECK( init(main()), LTL(G valid-free) )"""
+    elif result == "false(valid-memtrack)":
+        specification = """CHECK( init(main()), LTL(G valid-memtrack) )"""
+    else:
+        raise RuntimeError("unknown witness specification")
+    return specification
 
 async def compile(args):
     gcc_args = ["gcc", "-g", str(SCRIPT_DIR / "sv-comp.c"), args.program, "-lm", "-fgnu89-inline"] # tasks like pthread-ext/03_incdec need gnu inline, hopefully this is fine for others
@@ -149,21 +167,8 @@ async def run(args, executable):
         task.cancel()
     return done.pop().result()
 
-def generate_witness(args, result):
-    if args.property == "no-data-race":
-        specification = """CHECK( init(main()), LTL(G ! data-race) )"""
-    elif args.property == "valid-memcleanup":
-        specification = """CHECK( init(main()), LTL(G valid-memcleanup) )"""
-    elif args.property == "no-overflow":
-        specification = """CHECK( init(main()), LTL(G ! overflow) )"""
-    elif result == "false(valid-deref)":
-        specification = """CHECK( init(main()), LTL(G valid-deref) )"""
-    elif result == "false(valid-free)":
-        specification = """CHECK( init(main()), LTL(G valid-free) )"""
-    elif result == "false(valid-memtrack)":
-        specification = """CHECK( init(main()), LTL(G valid-memtrack) )"""
-    else:
-        raise RuntimeError("unknown witness specification")
+def generate_graphml_witness(args, result):
+    specification = determine_witness_specification(args, result)
     with open(args.program, "rb") as file:
         programhash = hashlib.sha256(file.read()).hexdigest()
     architecture = "32bit" if args.data_model == "ILP32" else "64bit"
@@ -240,6 +245,47 @@ def generate_witness(args, result):
     with open("witness.graphml", "w") as file:
         file.write(witness)
 
+def generate_yaml_witness(args, result):
+    specification = determine_witness_specification(args, result)
+    with open(args.program, "rb") as file:
+        programhash = hashlib.sha256(file.read()).hexdigest()
+    creationtime = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace('+00:00', 'Z') # https://stackoverflow.com/a/42777551/854540
+    uuid = uuid4()
+    metadata = f"""metadata:
+    format_version: "2.0"
+    uuid: {uuid}
+    creation_time: {creationtime}
+    producer:
+      name: SV-sanitizers
+      version: {VERSION}
+    task:
+      input_files:
+      - {args.program}
+      input_file_hashes:
+        {args.program}: {programhash}
+      data_model: {args.data_model}
+      language: C
+      specification: {specification}"""
+    if result.startswith("false"):
+        witness = f"""- entry_type: violation_sequence
+  {metadata}
+  content:
+  - segment:
+    - waypoint:
+        type: target
+        action: follow
+        location: TODO
+"""
+    elif result == "true":
+        witness = f"""- entry_type: invariant_set
+  {metadata}
+  content: []
+"""
+    else:
+        raise RuntimeError("unknown result")
+    with open("witness.yml", "w") as file:
+        file.write(witness)
+
 async def main():
     args = parse_args()
     args.property = parse_property(args.property)
@@ -255,6 +301,11 @@ async def main():
     sys.stderr.flush()
     print(f"SV-COMP result: {result}")
     if executable is not None:
-        generate_witness(args, result)
+        if result.startswith("false"):
+            generate_graphml_witness(args, result)
+        elif result == "true":
+            generate_yaml_witness(args, result)
+        else:
+            raise RuntimeError("unknown result")
 
 asyncio.run(main())
