@@ -251,9 +251,7 @@ def generate_yaml_witness(args, result):
         programhash = hashlib.sha256(file.read()).hexdigest()
     creationtime = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace('+00:00', 'Z') # https://stackoverflow.com/a/42777551/854540
     uuid = uuid4()
-    if result.startswith("false"):
-        witness = f"""- entry_type: violation_sequence
-  metadata:
+    metadata = f"""metadata:
     format_version: "2.0"
     uuid: {uuid}
     creation_time: {creationtime}
@@ -267,7 +265,10 @@ def generate_yaml_witness(args, result):
         {args.program}: {programhash}
       data_model: {args.data_model}
       language: C
-      specification: {specification}
+      specification: {specification}"""
+    if result.startswith("false"):
+        witness = f"""- entry_type: violation_sequence
+  {metadata}
   content:
   - segment:
     - waypoint:
@@ -277,21 +278,7 @@ def generate_yaml_witness(args, result):
 """
     elif result == "true":
         witness = f"""- entry_type: invariant_set
-  metadata:
-    format_version: "2.0"
-    uuid: {uuid}
-    creation_time: {creationtime}
-    producer:
-      name: SV-sanitizers
-      version: {VERSION}
-    task:
-      input_files:
-      - {args.program}
-      input_file_hashes:
-        {args.program}: {programhash}
-      data_model: {args.data_model}
-      language: C
-      specification: {specification}
+  {metadata}
   content: []
 """
     else:
