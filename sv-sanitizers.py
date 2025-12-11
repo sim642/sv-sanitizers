@@ -266,7 +266,7 @@ def generate_yaml_witness(args, result):
     uuid: {uuid}
     creation_time: {creationtime}
     producer:
-      name: sv-sanitizers
+      name: SV-sanitizers
       version: {VERSION}
     task:
       input_files:
@@ -290,7 +290,7 @@ def generate_yaml_witness(args, result):
     uuid: {uuid}
     creation_time: {creationtime}
     producer:
-      name: sv-sanitizers
+      name: SV-sanitizers
       version: {VERSION}
     task:
       input_files:
