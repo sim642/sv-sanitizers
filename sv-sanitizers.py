@@ -309,5 +309,3 @@ async def main():
             raise RuntimeError("unknown result")
 
 asyncio.run(main())
-
-print(sys.argv)
