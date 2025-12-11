@@ -301,8 +301,12 @@ async def main():
     sys.stderr.flush()
     print(f"SV-COMP result: {result}")
     if executable is not None:
-        generate_graphml_witness(args, result)
-        generate_yaml_witness(args, result)
+        if result.startswith("false"):
+            generate_graphml_witness(args, result)
+        elif result == "true":
+            generate_yaml_witness(args, result)
+        else:
+            raise RuntimeError("unknown result")
 
 asyncio.run(main())
 
