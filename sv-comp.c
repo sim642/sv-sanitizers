@@ -124,3 +124,28 @@ void __VERIFIER_atomic_begin() {
 void __VERIFIER_atomic_end() {
   pthread_mutex_unlock(&__sv_sanitizers_atomic);
 }
+
+
+void* __real_malloc(size_t size);
+void* __wrap_malloc(size_t size) {
+  if (__VERIFIER_nondet_uint() > 20)
+    return NULL;
+  else
+    return __real_malloc(size);
+}
+
+void* __real_calloc(size_t n, size_t size);
+void* __wrap_calloc(size_t n, size_t size) {
+  if (__VERIFIER_nondet_uint() > 20)
+    return NULL;
+  else
+    return __real_calloc(n, size);
+}
+
+void* __real_realloc(void *ptr, size_t size);
+void* __wrap_realloc(void *ptr, size_t size) {
+  if (__VERIFIER_nondet_uint() > 20)
+    return NULL;
+  else
+    return __real_realloc(ptr, size);
+}
