@@ -87,8 +87,10 @@ async def compile(args):
     process = await asyncio.create_subprocess_exec(*gcc_args, stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.PIPE)
     _, stderr = await process.communicate()
     if process.returncode == 0:
-        if args.property == "no-overflow" and b"integer overflow in expression" in stderr:
-            return (Path("a.out").absolute(), "false(no-overflow)", [], stderr) # TODO: target
+        if args.property == "no-overflow" and (m := re.search(rb"^(.*):(\d+):(\d+): warning: integer overflow in expression", stderr, flags=re.MULTILINE)):
+            file = m.group(1)
+            line = int(m.group(2))
+            return (Path("a.out").absolute(), "false(no-overflow)", [(file, line, None)], stderr)
         else:
             return (Path("a.out").absolute(), None, None, stderr)
     else:
