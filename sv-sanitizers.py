@@ -88,7 +88,7 @@ async def compile(args):
     _, stderr = await process.communicate()
     if process.returncode == 0:
         if args.property == "no-overflow" and b"integer overflow in expression" in stderr:
-            return (Path("a.out").absolute(), "false(no-overflow)", None, stderr) # TODO: target
+            return (Path("a.out").absolute(), "false(no-overflow)", [], stderr) # TODO: target
         else:
             return (Path("a.out").absolute(), None, None, stderr)
     else:
@@ -108,15 +108,26 @@ async def check_symbols(args, executable):
 processes = set()
 stop = False
 
-def parse_ubsan_target(stderr):
-    if m := re.search(rb"^    #(\d+) 0x[0-9a-z]+ (?:in (\w+))?(?: (.*):(\d+))?(?: \(([^)]+)\))?(?: \(BuildId: ([0-9a-z]+)\))?$", stderr, flags=re.MULTILINE):
-        assert int(m.group(1)) == 0
-        fun = m.group(2)
-        file = m.group(3)
-        line = int(m.group(4))
-        return (file, line, fun)
+def parse_tsan_targets(stderr):
+    ms = list(re.finditer(rb"^    #0 (\w+) (.*):(\d+)(?: \(([^)]+)\))?(?: \(BuildId: ([0-9a-z]+)\))?$", stderr, flags=re.MULTILINE)) # finditer returns matches
+    if len(ms) >= 2:
+        def extract(m):
+            fun = m.group(1)
+            file = m.group(2)
+            line = int(m.group(3))
+            return (file, line, fun)
+        return list(map(extract, ms[:2]))
     else:
-        return None
+        return []
+
+def parse_ubsan_targets(stderr):
+    if m := re.search(rb"^    #0 0x[0-9a-z]+ (?:in (\w+))?(?: (.*):(\d+))?(?: \(([^)]+)\))?(?: \(BuildId: ([0-9a-z]+)\))?$", stderr, flags=re.MULTILINE):
+        fun = m.group(1)
+        file = m.group(2)
+        line = int(m.group(3))
+        return [(file, line, fun)]
+    else:
+        return []
 
 async def run_one(args, executable):
     print(".", end="", flush=True)
@@ -131,7 +142,7 @@ async def run_one(args, executable):
         try:
             _, stderr = await process.communicate()
             if process.returncode == 66 and b"WARNING: ThreadSanitizer: data race" in stderr:
-                return ("false(no-data-race)", None, stderr) # TODO: target
+                return ("false(no-data-race)", parse_tsan_targets(stderr), stderr)
             elif b"ERROR: AddressSanitizer: dynamic-stack-buffer-overflow" in stderr \
                 or b"ERROR: AddressSanitizer: heap-use-after-free" in stderr \
                 or b"ERROR: AddressSanitizer: heap-buffer-overflow" in stderr \
@@ -141,20 +152,20 @@ async def run_one(args, executable):
                 or b"ERROR: AddressSanitizer: stack-use-after-scope" in stderr \
                 or b"ERROR: AddressSanitizer: stack-use-after-return" in stderr \
                 or b"ERROR: AddressSanitizer: SEGV on unknown address" in stderr:
-                return ("false(valid-deref)", None, stderr) # TODO: target
+                return ("false(valid-deref)", [], stderr) # TODO: target
             elif b"ERROR: AddressSanitizer: attempting double-free" in stderr \
                 or b"ERROR: AddressSanitizer: attempting free on address which was not malloc()-ed" in stderr:
-                return ("false(valid-free)", None, stderr) # TODO: target
+                return ("false(valid-free)", [], stderr) # TODO: target
             elif b"ERROR: LeakSanitizer: detected memory leaks" in stderr:
                 if args.property == "valid-memcleanup":
-                    return ("false(valid-memcleanup)", None, stderr) # TODO: target
+                    return ("false(valid-memcleanup)", [], stderr) # TODO: target
                 else:
-                    return ("false(valid-memtrack)", None, stderr) # TODO: target
+                    return ("false(valid-memtrack)", [], stderr) # TODO: target
             elif b"runtime error: signed integer overflow" in stderr \
                 or b"runtime error: division of" in stderr \
                 or b"runtime error: negation of" in stderr \
                 or b"runtime error: left shift of" in stderr:
-                return ("false(no-overflow)", parse_ubsan_target(stderr), stderr)
+                return ("false(no-overflow)", parse_ubsan_targets(stderr), stderr)
             else:
                 return None
         finally:
@@ -178,7 +189,7 @@ async def run(args, executable):
         task.cancel()
     return done.pop().result()
 
-def generate_yaml_witness(args, result, target):
+def generate_yaml_witness(args, result, targets):
     specification = determine_witness_specification(args, result)
     with open(args.program, "rb") as file:
         programhash = hashlib.sha256(file.read()).hexdigest()
@@ -200,22 +211,23 @@ def generate_yaml_witness(args, result, target):
       language: C
       specification: {specification}"""
     if result.startswith("false"):
-        if target is None:
+        if not targets:
             raise RuntimeError("false result without target")
-        target_file, target_line, target_fun = target
         witness = f"""- entry_type: violation_sequence
   {metadata}
   content:
   - segment:
-    - waypoint:
+"""
+        for target_file, target_line, target_fun in targets:
+            witness += f"""    - waypoint:
         type: target
         action: follow
         location:
           file_name: {target_file.decode('utf-8')}
           line: {target_line}
 """
-        if target_fun is not None:
-            witness += f"""          function: {target_fun.decode('utf-8')}
+            if target_fun is not None:
+                witness += f"""          function: {target_fun.decode('utf-8')}
 """
     elif result == "true":
         witness = f"""- entry_type: invariant_set
@@ -230,18 +242,18 @@ def generate_yaml_witness(args, result, target):
 async def main():
     args = parse_args()
     args.property = parse_property(args.property)
-    executable, result, target, output = await compile(args)
+    executable, result, targets, output = await compile(args)
     if result is None:
         result_output = await check_symbols(args, executable)
         if result_output is None:
-            result, target, output = await run(args, executable)
+            result, targets, output = await run(args, executable)
         else:
-            result, target, output = result_output
+            result, targets, output = result_output
     print()
     sys.stderr.buffer.write(output)
     sys.stderr.flush()
     print(f"SV-COMP result: {result}")
     if executable is not None:
-        generate_yaml_witness(args, result, target)
+        generate_yaml_witness(args, result, targets)
 
 asyncio.run(main())
