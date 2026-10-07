@@ -114,18 +114,33 @@ def parse_tsan_targets(stderr):
     ms = list(re.finditer(rb"^    #0 (\w+) (.*):(\d+)(?: \(([^)]+)\))?(?: \(BuildId: ([0-9a-z]+)\))?$", stderr, flags=re.MULTILINE)) # finditer returns matches
     if len(ms) >= 2:
         def extract(m):
-            fun = m.group(1)
-            file = m.group(2)
+            fun = m.group(1).decode('utf-8')
+            file = m.group(2).decode('utf-8')
             line = int(m.group(3))
             return (file, line, fun)
         return list(map(extract, ms[:2]))
     else:
         return []
 
+def parse_asan_targets(program, stderr, i=0):
+    if m := re.search(rb"^    #" + str(i).encode('utf-8') + rb" 0x[0-9a-z]+ (?:in (\w+))?(?: (.*):(\d+))?(?: \(([^)]+)\))?(?: \(BuildId: ([0-9a-z]+)\))?$", stderr, flags=re.MULTILINE):
+        fun = m.group(1)
+        if fun:
+            fun = fun.decode('utf-8')
+        file = program # ASan converts to full path
+        line = int(m.group(3))
+        return [(file, line, fun)]
+    else:
+        return []
+
 def parse_ubsan_targets(stderr):
     if m := re.search(rb"^    #0 0x[0-9a-z]+ (?:in (\w+))?(?: (.*):(\d+))?(?: \(([^)]+)\))?(?: \(BuildId: ([0-9a-z]+)\))?$", stderr, flags=re.MULTILINE):
         fun = m.group(1)
+        if fun:
+            fun = fun.decode('utf-8')
         file = m.group(2)
+        if file:
+            file = file.decode('utf-8')
         line = int(m.group(3))
         return [(file, line, fun)]
     else:
@@ -154,10 +169,10 @@ async def run_one(args, executable):
                 or b"ERROR: AddressSanitizer: stack-use-after-scope" in stderr \
                 or b"ERROR: AddressSanitizer: stack-use-after-return" in stderr \
                 or b"ERROR: AddressSanitizer: SEGV on unknown address" in stderr:
-                return ("false(valid-deref)", [], stderr) # TODO: target
+                return ("false(valid-deref)", parse_asan_targets(args.program, stderr), stderr)
             elif b"ERROR: AddressSanitizer: attempting double-free" in stderr \
                 or b"ERROR: AddressSanitizer: attempting free on address which was not malloc()-ed" in stderr:
-                return ("false(valid-free)", [], stderr) # TODO: target
+                return ("false(valid-free)", parse_asan_targets(args.program, stderr, i=1), stderr) # double-free has free itself as #0 and actual call as #1
             elif b"ERROR: LeakSanitizer: detected memory leaks" in stderr:
                 if args.property == "valid-memcleanup":
                     return ("false(valid-memcleanup)", [], stderr) # TODO: target
@@ -225,11 +240,11 @@ def generate_yaml_witness(args, result, targets):
         type: target
         action: follow
         location:
-          file_name: {target_file.decode('utf-8')}
+          file_name: {target_file}
           line: {target_line}
 """
             if target_fun is not None:
-                witness += f"""          function: {target_fun.decode('utf-8')}
+                witness += f"""          function: {target_fun}
 """
     elif result == "true":
         witness = f"""- entry_type: invariant_set
