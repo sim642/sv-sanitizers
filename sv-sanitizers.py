@@ -109,40 +109,57 @@ async def check_symbols(args, executable):
 
 processes = set()
 stop = False
+def parse_san_stacktraces(stackframe_re: re.Pattern, stderr):
+    result = []
+    last_i = None
 
-def parse_tsan_targets(stderr):
-    ms = list(re.finditer(rb"^    #0 (\w+) (.*):(\d+)(?: \(([^)]+)\))?(?: \(BuildId: ([0-9a-z]+)\))?$", stderr, flags=re.MULTILINE)) # finditer returns matches
-    if len(ms) >= 2:
-        def extract(m):
-            fun = m.group(1).decode('utf-8')
-            file = m.group(2).decode('utf-8')
-            line = int(m.group(3))
-            return (file, line, fun)
-        return list(map(extract, ms[:2]))
-    else:
-        return []
-
-def parse_asan_targets(program, stderr, i=0):
-    if m := re.search(rb"^    #" + str(i).encode('utf-8') + rb" 0x[0-9a-z]+ (?:in (\w+))?(?: (.*):(\d+))?(?: \(([^)]+)\))?(?: \(BuildId: ([0-9a-z]+)\))?$", stderr, flags=re.MULTILINE):
-        fun = m.group(1)
+    for m in stackframe_re.finditer(stderr): # finditer returns matches
+        i = int(m.group("i"))
+        fun = m.group("fun")
         if fun:
             fun = fun.decode('utf-8')
-        file = program # ASan converts to full path
-        line = int(m.group(3))
-        return [(file, line, fun)]
-    else:
-        return []
-
-def parse_ubsan_targets(stderr):
-    if m := re.search(rb"^    #0 0x[0-9a-z]+ (?:in (\w+))?(?: (.*):(\d+))?(?: \(([^)]+)\))?(?: \(BuildId: ([0-9a-z]+)\))?$", stderr, flags=re.MULTILINE):
-        fun = m.group(1)
-        if fun:
-            fun = fun.decode('utf-8')
-        file = m.group(2)
+        file = m.group("file")
         if file:
             file = file.decode('utf-8')
-        line = int(m.group(3))
+        line = m.group("line")
+        if line:
+            line = int(line)
+
+        if last_i is None or i <= last_i:
+            result.append([])
+        result[-1].append((file, line, fun))
+
+        last_i = i
+
+    return result
+
+TSAN_STACKFRAME_RE = re.compile(rb"^    #(?P<i>\d+) (?P<fun>\w+) (?P<file>.*):(?P<line>\d+)(?: \(([^)]+)\))?(?: \(BuildId: ([0-9a-z]+)\))?$", flags=re.MULTILINE)
+
+def parse_tsan_targets(stderr):
+    stacktraces = parse_san_stacktraces(TSAN_STACKFRAME_RE, stderr)
+    if len(stacktraces) >= 2:
+        return [stacktrace[0] for stacktrace in stacktraces[:2]]
+    else:
+        return []
+
+ASAN_STACKFRAME_RE = re.compile(rb"^    #(?P<i>\d+) 0x[0-9a-z]+ (?:in (?P<fun>\w+))?(?: (?P<file>.*):(?P<line>\d+))?(?: \(([^)]+)\))?(?: \(BuildId: ([0-9a-z]+)\))?$", flags=re.MULTILINE)
+
+# TODO: instead of indexing, find first frame with program name (asan interceptors can be at the top)
+def parse_asan_targets(program, stderr, i=0):
+    stacktraces = parse_san_stacktraces(ASAN_STACKFRAME_RE, stderr)
+    if stacktraces and i < len(stacktraces[0]):
+        file, line, fun = stacktraces[0][i]
+        file = program # ASan converts to full path
         return [(file, line, fun)]
+    else:
+        return []
+
+UBSAN_STACKFRAME_RE = ASAN_STACKFRAME_RE
+
+def parse_ubsan_targets(stderr):
+    stacktraces = parse_san_stacktraces(ASAN_STACKFRAME_RE, stderr)
+    if stacktraces:
+        return [stacktraces[0][0]]
     else:
         return []
 
