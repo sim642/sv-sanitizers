@@ -133,33 +133,38 @@ def parse_san_stacktraces(stackframe_re: re.Pattern, stderr):
 
     return result
 
+def find_program_stackframe(program, stacktrace):
+    program_name = Path(program).name
+    for stackframe in stacktrace:
+        file = stackframe[0]
+        if file is not None and Path(file).name == program_name:
+            return stackframe
+    return None
+
 TSAN_STACKFRAME_RE = re.compile(rb"^    #(?P<i>\d+) (?P<fun>\w+) (?P<file>.*):(?P<line>\d+)(?: \(([^)]+)\))?(?: \(BuildId: ([0-9a-z]+)\))?$", flags=re.MULTILINE)
 
-def parse_tsan_targets(stderr):
+def parse_tsan_targets(program, stderr):
     stacktraces = parse_san_stacktraces(TSAN_STACKFRAME_RE, stderr)
     if len(stacktraces) >= 2:
-        return [stacktrace[0] for stacktrace in stacktraces[:2]]
+        return [find_program_stackframe(program, stacktrace) for stacktrace in stacktraces[:2]]
     else:
         return []
 
 ASAN_STACKFRAME_RE = re.compile(rb"^    #(?P<i>\d+) 0x[0-9a-z]+ (?:in (?P<fun>\w+))?(?: (?P<file>.*):(?P<line>\d+))?(?: \(([^)]+)\))?(?: \(BuildId: ([0-9a-z]+)\))?$", flags=re.MULTILINE)
 
-# TODO: instead of indexing, find first frame with program name (asan interceptors can be at the top)
-def parse_asan_targets(program, stderr, i=0):
+def parse_asan_targets(program, stderr):
     stacktraces = parse_san_stacktraces(ASAN_STACKFRAME_RE, stderr)
-    if stacktraces and i < len(stacktraces[0]):
-        file, line, fun = stacktraces[0][i]
-        file = program # ASan converts to full path
-        return [(file, line, fun)]
+    if stacktraces:
+        return [find_program_stackframe(program, stacktraces[0])]
     else:
         return []
 
 UBSAN_STACKFRAME_RE = ASAN_STACKFRAME_RE
 
-def parse_ubsan_targets(stderr):
+def parse_ubsan_targets(program, stderr):
     stacktraces = parse_san_stacktraces(ASAN_STACKFRAME_RE, stderr)
     if stacktraces:
-        return [stacktraces[0][0]]
+        return [find_program_stackframe(program, stacktraces[0])]
     else:
         return []
 
@@ -176,7 +181,7 @@ async def run_one(args, executable):
         try:
             _, stderr = await process.communicate()
             if process.returncode == 66 and b"WARNING: ThreadSanitizer: data race" in stderr:
-                return ("false(no-data-race)", parse_tsan_targets(stderr), stderr)
+                return ("false(no-data-race)", parse_tsan_targets(args.program, stderr), stderr)
             elif b"ERROR: AddressSanitizer: dynamic-stack-buffer-overflow" in stderr \
                 or b"ERROR: AddressSanitizer: heap-use-after-free" in stderr \
                 or b"ERROR: AddressSanitizer: heap-buffer-overflow" in stderr \
@@ -189,7 +194,7 @@ async def run_one(args, executable):
                 return ("false(valid-deref)", parse_asan_targets(args.program, stderr), stderr)
             elif b"ERROR: AddressSanitizer: attempting double-free" in stderr \
                 or b"ERROR: AddressSanitizer: attempting free on address which was not malloc()-ed" in stderr:
-                return ("false(valid-free)", parse_asan_targets(args.program, stderr, i=1), stderr) # double-free has free itself as #0 and actual call as #1
+                return ("false(valid-free)", parse_asan_targets(args.program, stderr), stderr) # double-free has free itself as #0 and actual call as #1
             elif b"ERROR: LeakSanitizer: detected memory leaks" in stderr:
                 if args.property == "valid-memcleanup":
                     return ("false(valid-memcleanup)", [], stderr) # TODO: target
@@ -199,7 +204,7 @@ async def run_one(args, executable):
                 or b"runtime error: division of" in stderr \
                 or b"runtime error: negation of" in stderr \
                 or b"runtime error: left shift of" in stderr:
-                return ("false(no-overflow)", parse_ubsan_targets(stderr), stderr)
+                return ("false(no-overflow)", parse_ubsan_targets(args.program, stderr), stderr)
             else:
                 return None
         finally:
