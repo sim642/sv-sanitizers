@@ -67,5 +67,13 @@ $SV_SANITIZERS --p no-overflow.prp --d ILP32 AdditionIntMax.c | grep "SV-COMP re
 grep "entry_type: violation_sequence" witness.yml # Check witness type.
 grep "line: 4" witness.yml # Check witness target line.
 
+$SV_SANITIZERS --p no-overflow.prp --d ILP32 reach-error.c | grep "SV-COMP result: true"
+grep "entry_type: invariant_set" witness.yml # Check witness type.
+
+
+# Check if compile-time reachability analysis returns correct results.
+$SV_SANITIZERS --p unreach-call.prp --d ILP32 no-reach-error.c | grep "SV-COMP result: true"
+grep "entry_type: invariant_set" witness.yml # Check witness type.
+
 
 echo "SUCCESS"

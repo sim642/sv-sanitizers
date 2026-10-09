@@ -76,8 +76,9 @@ def determine_witness_specification(args, result):
     return specification
 
 async def compile(args):
-    gcc_args = ["gcc", "-g", str(SCRIPT_DIR / "sv-comp.c"), args.program, "-lm", "-fgnu89-inline", "-Wl,--defsym,reach_error=__sv_sanitizers_reach_error"] # tasks like pthread-ext/03_incdec need gnu inline, hopefully this is fine for others
+    gcc_args = ["gcc", "-ffunction-sections", "-fdata-sections", "-g", str(SCRIPT_DIR / "sv-comp.c"), args.program, "-lm", "-fgnu89-inline", "-Wl,--gc-sections", "-Wl,--defsym,reach_error=__sv_sanitizers_reach_error"] # tasks like pthread-ext/03_incdec need gnu inline, hopefully this is fine for others
     # Trickery for wrapping non-weak functions defined in the input file: https://stackoverflow.com/a/63350723/854540.
+    # Sections trickery for compile-time check of reach_error.
     if args.property == "no-data-race":
         gcc_args += ["-fsanitize=thread"]
         # ignore data model because tsan is 64bit only
@@ -104,11 +105,18 @@ async def compile(args):
         return (None, "ERROR (compile)", None, stderr)
 
 async def check_symbols(args, executable):
-    # TODO: detect no reach_error() at compile time?
     if args.property == "no-overflow":
         process = await asyncio.create_subprocess_exec("nm", executable, stdout=asyncio.subprocess.PIPE)
         stdout, _ = await process.communicate()
         if b"__ubsan_" in stdout:
+            return None
+        else:
+            return ("true", None, stdout)
+    elif args.property == "unreach-call":
+        process = await asyncio.create_subprocess_exec("nm", executable, stdout=asyncio.subprocess.PIPE)
+        stdout, _ = await process.communicate()
+        # gc-sections still leaves reach_error, but uncalled defsym-ed __sv_sanitizers_reach_error is removed
+        if b"__sv_sanitizers_reach_error" in stdout:
             return None
         else:
             return ("true", None, stdout)
