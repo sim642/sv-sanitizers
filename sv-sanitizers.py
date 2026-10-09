@@ -186,26 +186,12 @@ def parse_ubsan_targets(program, stderr):
     else:
         return []
 
-LIBBACKTRACE_STACKFRAME_RE = re.compile(rb"^0x[0-9a-z]+ (?:\?\?\?|(?P<fun>\w+)) (?:\?\?\?|(?P<file>.*)):(?:0|(?P<line>\d+))$", flags=re.MULTILINE)
+LIBBACKTRACE_STACKFRAME_RE = re.compile(rb"^    #(?P<i>\d+) 0x[0-9a-z]+ (?:\?\?\?|(?P<fun>\w+)) (?:\?\?\?|(?P<file>.*)):(?:0|(?P<line>\d+))$", flags=re.MULTILINE)
 
 def parse_libbacktrace_targets(program, stderr):
-    stacktrace = []
-
-    for m in LIBBACKTRACE_STACKFRAME_RE.finditer(stderr): # finditer returns matches
-        fun = m.group("fun")
-        if fun:
-            fun = fun.decode('utf-8')
-        file = m.group("file")
-        if file:
-            file = file.decode('utf-8')
-        line = m.group("line")
-        if line:
-            line = int(line)
-
-        stacktrace.append((file, line, fun))
-
-    if stacktrace:
-        return [find_program_stackframe(program, stacktrace)]
+    stacktraces = parse_san_stacktraces(LIBBACKTRACE_STACKFRAME_RE, stderr)
+    if stacktraces:
+        return [find_program_stackframe(program, stacktraces[0])]
     else:
         return []
 
