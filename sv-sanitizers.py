@@ -76,7 +76,7 @@ def determine_witness_specification(args, result):
     return specification
 
 async def compile(args):
-    gcc_args = ["gcc", "-ffunction-sections", "-fdata-sections", "-g", str(SCRIPT_DIR / "sv-comp.c"), args.program, "-lm", "-fgnu89-inline", "-Wl,--gc-sections", "-Wl,--defsym,reach_error=__sv_sanitizers_reach_error"] # tasks like pthread-ext/03_incdec need gnu inline, hopefully this is fine for others
+    gcc_args = ["gcc", "-ffunction-sections", "-fdata-sections", "-g", str(SCRIPT_DIR / "sv-comp.c"), args.program, "-lm", "-lbacktrace", "-fgnu89-inline", "-Wl,--gc-sections", "-Wl,--defsym,reach_error=__sv_sanitizers_reach_error"] # tasks like pthread-ext/03_incdec need gnu inline, hopefully this is fine for others
     # Trickery for wrapping non-weak functions defined in the input file: https://stackoverflow.com/a/63350723/854540.
     # Sections trickery for compile-time check of reach_error.
     if args.property == "no-data-race":
@@ -125,6 +125,8 @@ async def check_symbols(args, executable):
 
 processes = set()
 stop = False
+
+
 def parse_san_stacktraces(stackframe_re: re.Pattern, stderr):
     result = []
     last_i = None
@@ -184,6 +186,29 @@ def parse_ubsan_targets(program, stderr):
     else:
         return []
 
+LIBBACKTRACE_STACKFRAME_RE = re.compile(rb"^0x[0-9a-z]+ (?:\?\?\?|(?P<fun>\w+)) (?:\?\?\?|(?P<file>.*)):(?:0|(?P<line>\d+))$", flags=re.MULTILINE)
+
+def parse_libbacktrace_targets(program, stderr):
+    stacktrace = []
+
+    for m in LIBBACKTRACE_STACKFRAME_RE.finditer(stderr): # finditer returns matches
+        fun = m.group("fun")
+        if fun:
+            fun = fun.decode('utf-8')
+        file = m.group("file")
+        if file:
+            file = file.decode('utf-8')
+        line = m.group("line")
+        if line:
+            line = int(line)
+
+        stacktrace.append((file, line, fun))
+
+    if stacktrace:
+        return [find_program_stackframe(program, stacktrace)]
+    else:
+        return []
+
 async def run_one(args, executable):
     print(".", end="", flush=True)
     env={
@@ -199,7 +224,7 @@ async def run_one(args, executable):
             if process.returncode == 66 and b"WARNING: ThreadSanitizer: data race" in stderr:
                 return ("false(no-data-race)", parse_tsan_targets(args.program, stderr), stderr)
             elif process.returncode == 99 and b"ERROR: SV-sanitizers: reach_error" in stderr:
-                return ("false(unreach-call)", [], stderr) # TODO: target
+                return ("false(unreach-call)", parse_libbacktrace_targets(args.program, stderr), stderr)
             elif b"ERROR: AddressSanitizer: dynamic-stack-buffer-overflow" in stderr \
                 or b"ERROR: AddressSanitizer: heap-use-after-free" in stderr \
                 or b"ERROR: AddressSanitizer: heap-buffer-overflow" in stderr \

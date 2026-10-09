@@ -126,7 +126,32 @@ void __VERIFIER_atomic_end() {
   pthread_mutex_unlock(&__sv_sanitizers_atomic);
 }
 
+
+// extern void __sanitizer_print_stack_trace();
+
+#include <backtrace.h>
+
+static int __sv_sanitizers_print_stacktrace_callback(void *data, uintptr_t pc, const char *filename, int lineno, const char *function)
+{
+  fprintf (stderr, "0x%lx %s %s:%d\n",
+    (unsigned long) pc,
+    function == NULL ? "???" : function,
+    filename == NULL ? "???" : filename,
+    lineno);
+  return 0;
+}
+
+void __attribute__((noinline)) __sv_sanitizers_print_stacktrace()
+{
+  // TODO: why name "sv-comp.c" breaks libbacktrace?
+  backtrace_full (backtrace_create_state("", 1, NULL, NULL), 0 + 1, __sv_sanitizers_print_stacktrace_callback, NULL, NULL);
+}
+
 void __sv_sanitizers_reach_error() {
   fprintf(stderr, "ERROR: SV-sanitizers: reach_error\n");
+  // __sanitizer_print_stack_trace();
+  // TODO: why name "sv-comp.c" breaks libbacktrace?
+  // backtrace_print(backtrace_create_state("", 1, NULL, NULL), 0, stderr);
+  __sv_sanitizers_print_stacktrace();
   exit(99);
 }
