@@ -9,3 +9,4 @@ Currently supports:
     * `valid-memtrack` property via LeakSanitizer (LSan).
 * `valid-memcleanup` property via LeakSanitizer (LSan).
 * `no-overflow` property via UndefinedBehaviorSanitizer (UBSan).
+* `unreach-call` property via GNU `ld`.
