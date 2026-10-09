@@ -55,6 +55,13 @@ $SV_SANITIZERS --p valid-memcleanup.prp --d ILP32 leak.c | grep "SV-COMP result:
 # grep "line: 6" witness.yml # Check witness target line.
 
 
+# Check if basic reachability analysis returns correct results.
+# TODO: no target locations for reach_error
+$SV_SANITIZERS --p unreach-call.prp --d ILP32 reach-error.c | grep "SV-COMP result: false(unreach-call)"
+# grep "entry_type: violation_sequence" witness.yml # Check witness type.
+# grep "line: 6" witness.yml # Check witness target line.
+
+
 # Check if compile-time overflow analysis returns correct results.
 $SV_SANITIZERS --p no-overflow.prp --d ILP32 AdditionIntMax.c | grep "SV-COMP result: false(no-overflow)"
 grep "entry_type: violation_sequence" witness.yml # Check witness type.

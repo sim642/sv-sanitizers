@@ -35,6 +35,8 @@ def parse_property(property):
         return "valid-memcleanup"
     elif property == "no-overflow":
         return "no-overflow"
+    elif property == "unreach-call":
+        return "unreach-call"
     elif Path(property).is_file():
         text = Path(property).read_text()
         if text.startswith("""CHECK( init(main()), LTL(G ! data-race) )"""):
@@ -47,6 +49,8 @@ CHECK( init(main()), LTL(G valid-memtrack) )"""):
             return "valid-memcleanup"
         elif text.startswith("""CHECK( init(main()), LTL(G ! overflow) )"""):
             return "no-overflow"
+        elif text.startswith("""CHECK( init(main()), LTL(G ! call(reach_error())) )"""):
+            return "unreach-call"
         else:
             raise RuntimeError("unsupported property")
     else:
@@ -65,12 +69,15 @@ def determine_witness_specification(args, result):
         specification = """CHECK( init(main()), LTL(G valid-free) )"""
     elif result == "false(valid-memtrack)":
         specification = """CHECK( init(main()), LTL(G valid-memtrack) )"""
+    elif args.property == "unreach-call":
+        specification = """CHECK( init(main()), LTL(G ! call(reach_error())) )"""
     else:
         raise RuntimeError("unknown witness specification")
     return specification
 
 async def compile(args):
-    gcc_args = ["gcc", "-g", str(SCRIPT_DIR / "sv-comp.c"), args.program, "-lm", "-fgnu89-inline"] # tasks like pthread-ext/03_incdec need gnu inline, hopefully this is fine for others
+    gcc_args = ["gcc", "-g", str(SCRIPT_DIR / "sv-comp.c"), args.program, "-lm", "-fgnu89-inline", "-Wl,--defsym,reach_error=__sv_sanitizers_reach_error"] # tasks like pthread-ext/03_incdec need gnu inline, hopefully this is fine for others
+    # Trickery for wrapping non-weak functions defined in the input file: https://stackoverflow.com/a/63350723/854540.
     if args.property == "no-data-race":
         gcc_args += ["-fsanitize=thread"]
         # ignore data model because tsan is 64bit only
@@ -97,6 +104,7 @@ async def compile(args):
         return (None, "ERROR (compile)", None, stderr)
 
 async def check_symbols(args, executable):
+    # TODO: detect no reach_error() at compile time?
     if args.property == "no-overflow":
         process = await asyncio.create_subprocess_exec("nm", executable, stdout=asyncio.subprocess.PIPE)
         stdout, _ = await process.communicate()
@@ -182,6 +190,8 @@ async def run_one(args, executable):
             _, stderr = await process.communicate()
             if process.returncode == 66 and b"WARNING: ThreadSanitizer: data race" in stderr:
                 return ("false(no-data-race)", parse_tsan_targets(args.program, stderr), stderr)
+            elif process.returncode == 99 and b"ERROR: SV-sanitizers: reach_error" in stderr:
+                return ("false(unreach-call)", [], stderr) # TODO: target
             elif b"ERROR: AddressSanitizer: dynamic-stack-buffer-overflow" in stderr \
                 or b"ERROR: AddressSanitizer: heap-use-after-free" in stderr \
                 or b"ERROR: AddressSanitizer: heap-buffer-overflow" in stderr \

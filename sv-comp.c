@@ -4,6 +4,7 @@
 #include <math.h>
 #include <stdbool.h>
 #include <pthread.h>
+#include <stdio.h>
 
 // can't srand at the beginning of main, so GCC constructor
 __attribute__((constructor)) static void __sv_sanitizers_srand()  {
@@ -123,4 +124,9 @@ void __VERIFIER_atomic_begin() {
 
 void __VERIFIER_atomic_end() {
   pthread_mutex_unlock(&__sv_sanitizers_atomic);
+}
+
+void __sv_sanitizers_reach_error() {
+  fprintf(stderr, "ERROR: SV-sanitizers: reach_error\n");
+  exit(99);
 }
