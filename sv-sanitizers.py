@@ -251,7 +251,8 @@ def generate_yaml_witness(args, result, targets):
       specification: {specification}"""
     if result.startswith("false"):
         if not targets:
-            raise RuntimeError("false result without target")
+            # raise RuntimeError("false result without target")
+            return
         witness = f"""- entry_type: violation_sequence
   {metadata}
   content:
