@@ -234,8 +234,9 @@ def generate_yaml_witness(args, result, targets):
         programhash = hashlib.sha256(file.read()).hexdigest()
     creationtime = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace('+00:00', 'Z') # https://stackoverflow.com/a/42777551/854540
     uuid = uuid4()
+    format_version = "2.2" if targets and len(targets) >= 2 else "2.0"
     metadata = f"""metadata:
-    format_version: "2.0"
+    format_version: "{format_version}"
     uuid: {uuid}
     creation_time: {creationtime}
     producer:
