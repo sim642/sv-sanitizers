@@ -25,3 +25,22 @@ $SV_SANITIZERS --p no-overflow.prp --d ILP32 36-svcomp-arch.c | grep "SV-COMP re
 
 # Check if basic data race analysis returns correct results.
 $SV_SANITIZERS --p no-data-race.prp --d ILP32 04-mutex_01-simple_rc.c | grep "SV-COMP result: false(no-data-race)"
+
+
+# Check if basic memsafety analysis returns correct results.
+$SV_SANITIZERS --p valid-memsafety.prp --d ILP32 null-deref.c | grep "SV-COMP result: false(valid-deref)"
+$SV_SANITIZERS --p valid-memsafety.prp --d ILP32 double-free.c | grep "SV-COMP result: false(valid-free)"
+
+# TODO: no malloc failures
+# $SV_SANITIZERS --p valid-memsafety.prp --d ILP32 malloc-null-deref.c | grep "SV-COMP result: false(valid-deref)"
+
+# TODO: no target locations from LeakSanitizer
+# $SV_SANITIZERS --p valid-memsafety.prp --d ILP32 leak.c | grep "SV-COMP result: false(valid-memtrack)"
+# $SV_SANITIZERS --p valid-memcleanup.prp --d ILP32 leak.c | grep "SV-COMP result: false(valid-memcleanup)"
+
+
+# Check if compile-time overflow analysis returns correct results.
+$SV_SANITIZERS --p no-overflow.prp --d ILP32 AdditionIntMax.c | grep "SV-COMP result: false(no-overflow)"
+
+
+echo "SUCCESS"
