@@ -106,18 +106,12 @@ async def compile(args):
         return (None, "ERROR (compile)", None, stderr)
 
 async def check_symbols(args, executable):
-    if args.property == "no-overflow":
+    if args.property == "no-overflow" or args.property == "unreach-call":
         process = await asyncio.create_subprocess_exec("nm", executable, stdout=asyncio.subprocess.PIPE)
         stdout, _ = await process.communicate()
-        if b"__ubsan_" in stdout:
+        if args.property == "no-overflow" and b"__ubsan_" in stdout:
             return None
-        else:
-            return ("true", None, stdout)
-    elif args.property == "unreach-call":
-        process = await asyncio.create_subprocess_exec("nm", executable, stdout=asyncio.subprocess.PIPE)
-        stdout, _ = await process.communicate()
-        # gc-sections still leaves reach_error, but uncalled defsym-ed __sv_sanitizers_reach_error is removed
-        if b"__sv_sanitizers_reach_error" in stdout:
+        elif args.property == "unreach-call" and b"__sv_sanitizers_reach_error" in stdout: # gc-sections still leaves reach_error, but uncalled defsym-ed __sv_sanitizers_reach_error is removed
             return None
         else:
             return ("true", None, stdout)
