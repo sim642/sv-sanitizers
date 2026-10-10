@@ -4,6 +4,7 @@
 #include <math.h>
 #include <stdbool.h>
 #include <pthread.h>
+#include <stdio.h>
 
 // can't srand at the beginning of main, so GCC constructor
 __attribute__((constructor)) static void __sv_sanitizers_srand()  {
@@ -124,6 +125,41 @@ void __VERIFIER_atomic_begin() {
 void __VERIFIER_atomic_end() {
   pthread_mutex_unlock(&__sv_sanitizers_atomic);
 }
+
+
+#ifdef SV_SANITIZERS_REACH_ERROR
+// extern void __sanitizer_print_stack_trace();
+
+#include <backtrace.h>
+
+static int __sv_sanitizers_print_stacktrace_callback(void *data, uintptr_t pc, const char *filename, int lineno, const char *function)
+{
+  int *i = data;
+  fprintf (stderr, "    #%d 0x%lx %s %s:%d\n",
+    (*i)++,
+    (unsigned long) pc,
+    function == NULL ? "???" : function,
+    filename == NULL ? "???" : filename,
+    lineno);
+  return 0;
+}
+
+void __attribute__((noinline)) __sv_sanitizers_print_stacktrace()
+{
+  // TODO: why name "sv-comp.c" breaks libbacktrace?
+  int i = 0;
+  backtrace_full (backtrace_create_state("", 1, NULL, NULL), 0 + 1, __sv_sanitizers_print_stacktrace_callback, NULL, &i);
+}
+
+void __sv_sanitizers_reach_error() {
+  fprintf(stderr, "ERROR: SV-sanitizers: reach_error\n");
+  // __sanitizer_print_stack_trace();
+  // TODO: why name "sv-comp.c" breaks libbacktrace?
+  // backtrace_print(backtrace_create_state("", 1, NULL, NULL), 0, stderr);
+  __sv_sanitizers_print_stacktrace();
+  exit(99);
+}
+#endif
 
 
 void* __real_malloc(size_t size);
