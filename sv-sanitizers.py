@@ -76,7 +76,7 @@ def determine_witness_specification(args, result):
     return specification
 
 async def compile(args):
-    gcc_args = ["gcc", "-ffunction-sections", "-fdata-sections", "-g", str(SCRIPT_DIR / "sv-comp.c"), args.program, "-lm", "-fgnu89-inline", "-Wl,--gc-sections"] # tasks like pthread-ext/03_incdec need gnu inline, hopefully this is fine for others
+    gcc_args = ["gcc", "-fno-omit-frame-pointer", "-ffunction-sections", "-fdata-sections", "-g", str(SCRIPT_DIR / "sv-comp.c"), args.program, "-lm", "-fgnu89-inline", "-Wl,--gc-sections"] # tasks like pthread-ext/03_incdec need gnu inline, hopefully this is fine for others
     # Sections trickery for compile-time check of reach_error.
     if args.property == "no-data-race":
         gcc_args += ["-fsanitize=thread"]
@@ -194,8 +194,8 @@ async def run_one(args, executable):
     print(".", end="", flush=True)
     env={
         "TSAN_OPTIONS": f""""exitcode"=66 "halt_on_error"=1 "report_thread_leaks"=0 "report_destroy_locked"=0 "report_signal_unsafe"=0 suppressions={str(SCRIPT_DIR / "suppressions.txt")}""",
-        "ASAN_OPTIONS": r""""halt_on_error"=true "detect_leaks"=1 detect_stack_use_after_return=1""",
-        "UBSAN_OPTIONS": r"""halt_on_error=1 print_stacktrace=1"""
+        "ASAN_OPTIONS": r""""halt_on_error"=true "detect_leaks"=1 detect_stack_use_after_return=1 fast_unwind_on_fatal=1""",
+        "UBSAN_OPTIONS": r"""halt_on_error=1 print_stacktrace=1 fast_unwind_on_fatal=1"""
     }
     with open("/dev/urandom", "r") as urandom:
         process = await asyncio.create_subprocess_exec(executable, stdin=urandom, stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.PIPE, env=env)
