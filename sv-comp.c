@@ -127,6 +127,7 @@ void __VERIFIER_atomic_end() {
 }
 
 
+#ifdef SV_SANITIZERS_REACH_ERROR
 // extern void __sanitizer_print_stack_trace();
 
 #include <backtrace.h>
@@ -158,3 +159,4 @@ void __sv_sanitizers_reach_error() {
   __sv_sanitizers_print_stacktrace();
   exit(99);
 }
+#endif

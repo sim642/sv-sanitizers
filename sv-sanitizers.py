@@ -76,7 +76,7 @@ def determine_witness_specification(args, result):
     return specification
 
 async def compile(args):
-    gcc_args = ["gcc", "-ffunction-sections", "-fdata-sections", "-g", str(SCRIPT_DIR / "sv-comp.c"), args.program, "-lm", "-lbacktrace", "-fgnu89-inline", "-Wl,--gc-sections"] # tasks like pthread-ext/03_incdec need gnu inline, hopefully this is fine for others
+    gcc_args = ["gcc", "-ffunction-sections", "-fdata-sections", "-g", str(SCRIPT_DIR / "sv-comp.c"), args.program, "-lm", "-fgnu89-inline", "-Wl,--gc-sections"] # tasks like pthread-ext/03_incdec need gnu inline, hopefully this is fine for others
     # Sections trickery for compile-time check of reach_error.
     if args.property == "no-data-race":
         gcc_args += ["-fsanitize=thread"]
@@ -87,7 +87,7 @@ async def compile(args):
         elif args.property == "no-overflow":
             gcc_args += ["-fsanitize=signed-integer-overflow", "-fsanitize=shift-base"] #, "-fno-sanitize-recover=signed-integer-overflow"]
         elif args.property == "unreach-call":
-            gcc_args += ["-Wl,--defsym,reach_error=__sv_sanitizers_reach_error"] # Trickery for wrapping non-weak functions defined in the input file: https://stackoverflow.com/a/63350723/854540.
+            gcc_args += ["-DSV_SANITIZERS_REACH_ERROR", "-lbacktrace", "-Wl,--defsym,reach_error=__sv_sanitizers_reach_error"] # Trickery for wrapping non-weak functions defined in the input file: https://stackoverflow.com/a/63350723/854540.
 
         if args.data_model == "ILP32":
             gcc_args += ["-m32"]
