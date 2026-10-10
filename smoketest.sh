@@ -61,6 +61,11 @@ grep "entry_type: violation_sequence" witness.yml # Check witness type.
 grep "line: 6" witness.yml # Check witness target line.
 
 
+# Check if reach_error is unwrapped for non-reachability analysis.
+$SV_SANITIZERS --p no-overflow.prp --d ILP32 reach-error.c | grep "SV-COMP result: true"
+grep "entry_type: invariant_set" witness.yml # Check witness type.
+
+
 # Check if compile-time overflow analysis returns correct results.
 $SV_SANITIZERS --p no-overflow.prp --d ILP32 AdditionIntMax.c | grep "SV-COMP result: false(no-overflow)"
 grep "entry_type: violation_sequence" witness.yml # Check witness type.
