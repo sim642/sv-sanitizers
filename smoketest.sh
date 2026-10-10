@@ -41,10 +41,10 @@ $SV_SANITIZERS --p valid-memsafety.prp --d ILP32 double-free.c | grep "SV-COMP r
 grep "entry_type: violation_sequence" witness.yml # Check witness type.
 grep "line: 6" witness.yml # Check witness target line.
 
-# TODO: no malloc failures
-# $SV_SANITIZERS --p valid-memsafety.prp --d ILP32 malloc-null-deref.c | grep "SV-COMP result: false(valid-deref)"
-# grep "entry_type: violation_sequence" witness.yml # Check witness type.
-# grep "line: 7" witness.yml # Check witness target line.
+# Check if malloc can return NULL.
+$SV_SANITIZERS --p valid-memsafety.prp --d ILP32 malloc-null-deref.c | grep "SV-COMP result: false(valid-deref)"
+grep "entry_type: violation_sequence" witness.yml # Check witness type.
+grep "line: 7" witness.yml # Check witness target line.
 
 # TODO: no target locations from LeakSanitizer
 $SV_SANITIZERS --p valid-memsafety.prp --d ILP32 leak.c | grep "SV-COMP result: false(valid-memtrack)"
