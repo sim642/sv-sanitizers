@@ -38,6 +38,7 @@ double __sv_sanitizers_marsaglia() {
 
 #ifdef SV_SANITIZERS_TEST
 FILE *__sv_sanitizers_test_file = NULL;
+pthread_mutex_t __sv_sanitizers_test_file_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 __attribute__((constructor)) static void __sv_sanitizers_test_open() {
   const char *filename = getenv("SV_SANITIZERS_TEST_FILE");
@@ -50,7 +51,9 @@ __attribute__((destructor)) static void __sv_sanitizers_test_close() {
 
 #define __VERIFIER_nondet_return(type, fmt, x) \
   type r = (x); \
+  pthread_mutex_lock(&__sv_sanitizers_test_file_mutex); \
   fprintf(__sv_sanitizers_test_file, "  <input type=\""#type"\">"fmt"</input>\n", r); \
+  pthread_mutex_unlock(&__sv_sanitizers_test_file_mutex); \
   return r;
 #else
 #define __VERIFIER_nondet_return(type, fmt, x) \
