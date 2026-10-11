@@ -83,7 +83,7 @@ float __VERIFIER_nondet_float() {
 }
 
 double __VERIFIER_nondet_double() {
-  __VERIFIER_nondet_return(double, "%ld", __sv_sanitizers_marsaglia() * 20);
+  __VERIFIER_nondet_return(double, "%lf", __sv_sanitizers_marsaglia() * 20);
 }
 
 // TODO: loff_t
