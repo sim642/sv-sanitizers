@@ -163,6 +163,7 @@ cython_debug/
 a.out
 witness.graphml
 witness.yml
+test-suite/
 sv-sanitizers.zip
 
 *.c

@@ -37,9 +37,20 @@ double __sv_sanitizers_marsaglia() {
 }
 
 #ifdef SV_SANITIZERS_TEST
+FILE *__sv_sanitizers_test_file = NULL;
+
+__attribute__((constructor)) static void __sv_sanitizers_test_open() {
+  const char *filename = getenv("SV_SANITIZERS_TEST_FILE");
+  __sv_sanitizers_test_file = fopen(filename, "w");
+}
+
+__attribute__((destructor)) static void __sv_sanitizers_test_close() {
+  fclose(__sv_sanitizers_test_file);
+}
+
 #define __VERIFIER_nondet_return(type, fmt, x) \
   type r = (x); \
-  fprintf(stderr, "  <input type=\""#type"\">"fmt"</input>\n", r); \
+  fprintf(__sv_sanitizers_test_file, "  <input type=\""#type"\">"fmt"</input>\n", r); \
   return r;
 #else
 #define __VERIFIER_nondet_return(type, fmt, x) \
