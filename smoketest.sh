@@ -2,6 +2,7 @@
 
 set -e # Make script fail if any command fails.
 set -o pipefail # Make pipes fail if any command in pipe fails.
+set -x # Make script output commands.
 
 
 # Print version for reference.
