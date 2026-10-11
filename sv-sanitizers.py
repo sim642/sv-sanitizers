@@ -37,6 +37,8 @@ def parse_property(property):
         return "no-overflow"
     elif property == "unreach-call":
         return "unreach-call"
+    elif property == "coverage-error-call":
+        return "coverage-error-call"
     elif Path(property).is_file():
         text = Path(property).read_text()
         if text.startswith("""CHECK( init(main()), LTL(G ! data-race) )"""):
@@ -51,6 +53,8 @@ CHECK( init(main()), LTL(G valid-memtrack) )"""):
             return "no-overflow"
         elif text.startswith("""CHECK( init(main()), LTL(G ! call(reach_error())) )"""):
             return "unreach-call"
+        elif text.startswith("""COVER( init(main()), FQL(COVER EDGES(@CALL(reach_error))) )"""):
+            return "coverage-error-call"
         else:
             raise RuntimeError("unsupported property")
     else:
@@ -86,8 +90,10 @@ async def compile(args):
             gcc_args += ["-fsanitize=address"]
         elif args.property == "no-overflow":
             gcc_args += ["-fsanitize=signed-integer-overflow", "-fsanitize=shift-base"] #, "-fno-sanitize-recover=signed-integer-overflow"]
-        elif args.property == "unreach-call":
+        elif args.property == "unreach-call" or args.property == "coverage-error-call":
             gcc_args += ["-DSV_SANITIZERS_REACH_ERROR", "-lbacktrace", "-Wl,--defsym,reach_error=__sv_sanitizers_reach_error"] # Trickery for wrapping non-weak functions defined in the input file: https://stackoverflow.com/a/63350723/854540.
+            if args.property == "coverage-error-call":
+                gcc_args += ["-DSV_SANITIZERS_TEST"]
 
         if args.data_model == "ILP32":
             gcc_args += ["-m32"]
@@ -106,12 +112,12 @@ async def compile(args):
         return (None, "ERROR (compile)", None, stderr)
 
 async def check_symbols(args, executable):
-    if args.property == "no-overflow" or args.property == "unreach-call":
+    if args.property == "no-overflow" or args.property == "unreach-call" or args.property == "coverage-error-call":
         process = await asyncio.create_subprocess_exec("nm", executable, stdout=asyncio.subprocess.PIPE)
         stdout, _ = await process.communicate()
         if args.property == "no-overflow" and b"__ubsan_" in stdout:
             return None
-        elif args.property == "unreach-call" and b"__sv_sanitizers_reach_error" in stdout: # gc-sections still leaves reach_error, but uncalled defsym-ed __sv_sanitizers_reach_error is removed
+        elif (args.property == "unreach-call" or args.property == "coverage-error-call") and b"__sv_sanitizers_reach_error" in stdout: # gc-sections still leaves reach_error, but uncalled defsym-ed __sv_sanitizers_reach_error is removed
             return None
         else:
             return ("true", None, stdout)
@@ -205,7 +211,10 @@ async def run_one(args, executable):
             if process.returncode == 66 and b"WARNING: ThreadSanitizer: data race" in stderr:
                 return ("false(no-data-race)", parse_tsan_targets(args.program, stderr), stderr)
             elif process.returncode == 99 and b"ERROR: SV-sanitizers: reach_error" in stderr:
-                return ("false(unreach-call)", parse_libbacktrace_targets(args.program, stderr), stderr)
+                if args.property == "unreach-call":
+                    return ("false(unreach-call)", parse_libbacktrace_targets(args.program, stderr), stderr)
+                else: # args.property == "coverage-error-call"
+                    return ("done", parse_libbacktrace_targets(args.program, stderr), stderr)
             elif b"ERROR: AddressSanitizer: dynamic-stack-buffer-overflow" in stderr \
                 or b"ERROR: AddressSanitizer: heap-use-after-free" in stderr \
                 or b"ERROR: AddressSanitizer: heap-buffer-overflow" in stderr \
@@ -319,6 +328,9 @@ async def main():
     sys.stderr.flush()
     print(f"SV-COMP result: {result}")
     if executable is not None:
-        generate_yaml_witness(args, result, targets)
+        if args.property == "coverage-error-call":
+            pass
+        else:
+            generate_yaml_witness(args, result, targets)
 
 asyncio.run(main())
