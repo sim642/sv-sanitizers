@@ -116,6 +116,13 @@ unsigned short __VERIFIER_nondet_ushort() {
   return fabs(__sv_sanitizers_marsaglia() * 20);
 }
 
+void __VERIFIER_nondet_memory(void *mem, size_t size) {
+    unsigned char *p = mem;
+    for (size_t i = 0; i < size; i++) {
+        p[i] = __VERIFIER_nondet_uchar();
+    }
+}
+
 pthread_mutex_t __sv_sanitizers_atomic = PTHREAD_MUTEX_INITIALIZER;
 
 void __VERIFIER_atomic_begin() {
