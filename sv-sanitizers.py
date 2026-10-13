@@ -10,7 +10,7 @@ from uuid import uuid4
 import re
 
 
-VERSION="0.2.4"
+VERSION="0.3.0"
 SCRIPT_DIR = Path(__file__).parent
 
 
