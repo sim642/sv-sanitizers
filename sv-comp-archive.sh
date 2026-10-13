@@ -9,6 +9,7 @@ zip -r sv-sanitizers/sv-sanitizers.zip \
     sv-sanitizers/suppressions.txt \
     sv-sanitizers/sv-comp.c \
     sv-sanitizers/README.md \
+    sv-sanitizers/CHANGELOG.md \
     sv-sanitizers/LICENSE \
     sv-sanitizers/smoketest.sh \
     sv-sanitizers/smoketests/
