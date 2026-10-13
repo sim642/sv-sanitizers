@@ -1,4 +1,4 @@
-FROM ubuntu:24.04 AS smoketest-ubuntu
+FROM ubuntu:26.04 AS smoketest-ubuntu
 
 RUN apt-get update \
     && apt-get install -y unzip python3 gcc libc6-dev-i386 \
@@ -12,6 +12,7 @@ WORKDIR /root/sv-sanitizers
 RUN ./smoketest.sh
 
 FROM registry.gitlab.com/sosy-lab/benchmarking/competition-scripts/user:2026 AS smoketest-competition
+# TODO: FROM :2027
 
 RUN apt-get update \
     && apt-get install -y unzip \
