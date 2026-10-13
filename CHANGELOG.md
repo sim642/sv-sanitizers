@@ -4,6 +4,7 @@
 * Add YAML witness generation.
 * Add violation target location parsing for YAML violation witnesses.
 * Add `__VERIFIER_nondet_memory` definition.
+* Add `--alloc-fail-prob` argument for `malloc`/`calloc`/`realloc` returning `NULL`.
 * Remove GraphML witness generation.
 
 ## v0.2.4 (SV-COMP 2026)
