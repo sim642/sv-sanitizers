@@ -167,3 +167,31 @@ void __sv_sanitizers_reach_error() {
   exit(99);
 }
 #endif
+
+
+#ifdef SV_SANITIZERS_ALLOC_FAIL_PROB
+// TODO: use probability
+void* __real_malloc(size_t size);
+void* __wrap_malloc(size_t size) {
+  if ((rand() / ((double)RAND_MAX)) < SV_SANITIZERS_ALLOC_FAIL_PROB)
+    return NULL;
+  else
+    return __real_malloc(size);
+}
+
+void* __real_calloc(size_t n, size_t size);
+void* __wrap_calloc(size_t n, size_t size) {
+  if ((rand() / ((double)RAND_MAX)) < SV_SANITIZERS_ALLOC_FAIL_PROB)
+    return NULL;
+  else
+    return __real_calloc(n, size);
+}
+
+void* __real_realloc(void *ptr, size_t size);
+void* __wrap_realloc(void *ptr, size_t size) {
+  if ((rand() / ((double)RAND_MAX)) < SV_SANITIZERS_ALLOC_FAIL_PROB)
+    return NULL;
+  else
+    return __real_realloc(ptr, size);
+}
+#endif

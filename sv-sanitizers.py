@@ -19,6 +19,7 @@ def parse_args():
 
     parser.add_argument("-p", "--property", type=str, required=True)
     parser.add_argument("-d", "--data-model", type=str, choices=["ILP32", "LP64"], default="LP64")
+    parser.add_argument("--alloc-fail-prob", type=float, default=0.1)
     parser.add_argument("program", type=str)
     parser.add_argument("-j", "--jobs", type=int, default=1)
     parser.add_argument("-v", "--version", action="version", version=VERSION)
@@ -78,6 +79,8 @@ def determine_witness_specification(args, result):
 async def compile(args):
     gcc_args = ["gcc", "-ffunction-sections", "-fdata-sections", "-g", str(SCRIPT_DIR / "sv-comp.c"), args.program, "-lm", "-fgnu89-inline", "-Wl,--gc-sections"] # tasks like pthread-ext/03_incdec need gnu inline, hopefully this is fine for others
     # Sections trickery for compile-time check of reach_error.
+    if args.alloc_fail_prob:
+        gcc_args += [f"-DSV_SANITIZERS_ALLOC_FAIL_PROB={args.alloc_fail_prob}", "-Wl,--wrap=malloc", "-Wl,--wrap=calloc", "-Wl,--wrap=realloc"]
     if args.property == "no-data-race":
         gcc_args += ["-fsanitize=thread"]
         # ignore data model because tsan is 64bit only
