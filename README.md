@@ -10,3 +10,4 @@ Currently supports:
 * `valid-memcleanup` property via LeakSanitizer (LSan).
 * `no-overflow` property via UndefinedBehaviorSanitizer (UBSan).
 * `unreach-call` property via GNU `ld`.
+* `coverage-error-call` property via GNU `ld`.

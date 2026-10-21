@@ -1,3 +1,6 @@
+## v0.3.1
+* Add `coverage-error-call` support via GNU `ld`.
+
 ## v0.3.0
 * Add `unreach-call` violation support via GNU `ld`.
 * Add `unreach-call` correctness support via `nm`.
