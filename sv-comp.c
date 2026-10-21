@@ -36,40 +36,64 @@ double __sv_sanitizers_marsaglia() {
   }
 }
 
+#ifdef SV_SANITIZERS_TEST
+FILE *__sv_sanitizers_test_file = NULL;
+pthread_mutex_t __sv_sanitizers_test_file_mutex = PTHREAD_MUTEX_INITIALIZER;
+
+__attribute__((constructor)) static void __sv_sanitizers_test_open() {
+  const char *filename = getenv("SV_SANITIZERS_TEST_FILE");
+  __sv_sanitizers_test_file = fopen(filename, "w");
+}
+
+__attribute__((destructor)) static void __sv_sanitizers_test_close() {
+  fclose(__sv_sanitizers_test_file);
+}
+
+#define __VERIFIER_nondet_return(type, fmt, x) \
+  type r = (x); \
+  pthread_mutex_lock(&__sv_sanitizers_test_file_mutex); \
+  fprintf(__sv_sanitizers_test_file, "  <input type=\""#type"\">"fmt"</input>\n", r); \
+  pthread_mutex_unlock(&__sv_sanitizers_test_file_mutex); \
+  return r;
+#else
+#define __VERIFIER_nondet_return(type, fmt, x) \
+  return (type)(x);
+#endif
+
 bool __VERIFIER_nondet_bool() {
-  return rand() % 2;
+  __VERIFIER_nondet_return(_Bool, "%d", rand() % 2);
 }
 
 char __VERIFIER_nondet_char() {
-  return rand() % 256;
+  __VERIFIER_nondet_return(char, "%hhd", rand() % 256);
 }
 
 int __VERIFIER_nondet_int() {
-  return __sv_sanitizers_marsaglia() * 10;
+  __VERIFIER_nondet_return(int, "%d", __sv_sanitizers_marsaglia() * 10);
 }
 
 #ifdef __SIZEOF_INT128__
 __int128 __VERIFIER_nondet_int128() {
-  return __sv_sanitizers_marsaglia() * 40;
+  return __sv_sanitizers_marsaglia() * 40; // TODO: __VERIFIER_nondet_return
 }
 #endif
 
 float __VERIFIER_nondet_float() {
-  return __sv_sanitizers_marsaglia() * 10;
+  __VERIFIER_nondet_return(float, "%f", __sv_sanitizers_marsaglia() * 10);
 }
 
 double __VERIFIER_nondet_double() {
-  return __sv_sanitizers_marsaglia() * 20;
+  __VERIFIER_nondet_return(double, "%lf", __sv_sanitizers_marsaglia() * 20);
 }
 
 // TODO: loff_t
 
 long __VERIFIER_nondet_long() {
-  return __sv_sanitizers_marsaglia() * 20;
+  __VERIFIER_nondet_return(long, "%ld", __sv_sanitizers_marsaglia() * 20);
 }
 
 long long __VERIFIER_nondet_longlong() {
-  return __sv_sanitizers_marsaglia() * 30;
+  __VERIFIER_nondet_return(long long, "%lld", __sv_sanitizers_marsaglia() * 30);
 }
 
 // TODO: pchar
@@ -77,46 +101,46 @@ long long __VERIFIER_nondet_longlong() {
 // TODO: sector_t
 
 short __VERIFIER_nondet_short() {
-  return __sv_sanitizers_marsaglia() * 10;
+  __VERIFIER_nondet_return(short, "%hd", __sv_sanitizers_marsaglia() * 10);
 }
 
 size_t __VERIFIER_nondet_size_t() {
-  return __sv_sanitizers_marsaglia() * 20;
+  return __sv_sanitizers_marsaglia() * 20; // TODO: __VERIFIER_nondet_return
 }
 
 // u32
 
 unsigned char __VERIFIER_nondet_uchar() {
-  return rand() % 256;
+  __VERIFIER_nondet_return(unsigned char, "%hhu", (unsigned char)(rand() % 256));
 }
 
 unsigned int __VERIFIER_nondet_uint() {
-  return fabs(__sv_sanitizers_marsaglia() * 20);
+  __VERIFIER_nondet_return(unsigned int, "%u", (unsigned int)fabs(__sv_sanitizers_marsaglia() * 20));
 }
 
 #ifdef __SIZEOF_INT128__
 __uint128_t __VERIFIER_nondet_uint128() {
-  return fabs(__sv_sanitizers_marsaglia() * 80);
+  return fabs(__sv_sanitizers_marsaglia() * 80); // TODO: __VERIFIER_nondet_return
 }
 #endif
 
 unsigned long __VERIFIER_nondet_ulong() {
-  return fabs(__sv_sanitizers_marsaglia() * 40);
+  __VERIFIER_nondet_return(unsigned long, "%lu", (unsigned long)fabs(__sv_sanitizers_marsaglia() * 40));
 }
 
 unsigned long long __VERIFIER_nondet_ulonglong() {
-  return fabs(__sv_sanitizers_marsaglia() * 60);
+  __VERIFIER_nondet_return(unsigned long long, "%llu", (unsigned long long)fabs(__sv_sanitizers_marsaglia() * 60));
 }
 
 unsigned __VERIFIER_nondet_unsigned() {
-  return fabs(__sv_sanitizers_marsaglia() * 20);
+  __VERIFIER_nondet_return(unsigned, "%u", (unsigned)fabs(__sv_sanitizers_marsaglia() * 20));
 }
 
 unsigned short __VERIFIER_nondet_ushort() {
-  return fabs(__sv_sanitizers_marsaglia() * 20);
+  __VERIFIER_nondet_return(unsigned short, "%hu", (unsigned short)fabs(__sv_sanitizers_marsaglia() * 20));
 }
 
-void __VERIFIER_nondet_memory(void *mem, size_t size) {
+void __VERIFIER_nondet_memory(void *mem, size_t size) { // TODO: what should go to test vector?
     unsigned char *p = mem;
     for (size_t i = 0; i < size; i++) {
         p[i] = __VERIFIER_nondet_uchar();

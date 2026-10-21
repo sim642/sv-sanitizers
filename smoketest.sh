@@ -81,4 +81,11 @@ $SV_SANITIZERS --p unreach-call.prp --d ILP32 no-reach-error.c | grep "SV-COMP r
 grep "entry_type: invariant_set" witness.yml # Check witness type.
 
 
+# Check if reachability analysis test suite generation returns correct results.
+$SV_SANITIZERS --p coverage-error-call.prp --d ILP32 invert_string-2.c | grep "SV-COMP result: done"
+grep "<test-metadata>" test-suite/metadata.xml # Check metadata.
+grep "<testcase coversError=\"true\">" test-suite/testcase.xml # Check testcase result.
+grep "<input type=\"unsigned int\">" test-suite/testcase.xml # Check testcase input.
+
+
 echo "SUCCESS"

@@ -8,6 +8,7 @@ import hashlib
 from datetime import datetime, timezone
 from uuid import uuid4
 import re
+import tempfile
 
 
 VERSION="0.3.1-dev"
@@ -38,6 +39,8 @@ def parse_property(property):
         return "no-overflow"
     elif property == "unreach-call":
         return "unreach-call"
+    elif property == "coverage-error-call":
+        return "coverage-error-call"
     elif Path(property).is_file():
         text = Path(property).read_text()
         if text.startswith("""CHECK( init(main()), LTL(G ! data-race) )"""):
@@ -52,6 +55,8 @@ CHECK( init(main()), LTL(G valid-memtrack) )"""):
             return "no-overflow"
         elif text.startswith("""CHECK( init(main()), LTL(G ! call(reach_error())) )"""):
             return "unreach-call"
+        elif text.startswith("""COVER( init(main()), FQL(COVER EDGES(@CALL(reach_error))) )"""):
+            return "coverage-error-call"
         else:
             raise RuntimeError("unsupported property")
     else:
@@ -72,6 +77,8 @@ def determine_witness_specification(args, result):
         specification = """CHECK( init(main()), LTL(G valid-memtrack) )"""
     elif args.property == "unreach-call":
         specification = """CHECK( init(main()), LTL(G ! call(reach_error())) )"""
+    elif args.property == "coverage-error-call":
+        specification = """COVER( init(main()), FQL(COVER EDGES(@CALL(reach_error))) )"""
     else:
         raise RuntimeError("unknown witness specification")
     return specification
@@ -89,8 +96,10 @@ async def compile(args):
             gcc_args += ["-fsanitize=address"]
         elif args.property == "no-overflow":
             gcc_args += ["-fsanitize=signed-integer-overflow", "-fsanitize=shift-base"] #, "-fno-sanitize-recover=signed-integer-overflow"]
-        elif args.property == "unreach-call":
+        elif args.property == "unreach-call" or args.property == "coverage-error-call":
             gcc_args += ["-DSV_SANITIZERS_REACH_ERROR", "-lbacktrace", "-Wl,--defsym,reach_error=__sv_sanitizers_reach_error"] # Trickery for wrapping non-weak functions defined in the input file: https://stackoverflow.com/a/63350723/854540.
+            if args.property == "coverage-error-call":
+                gcc_args += ["-DSV_SANITIZERS_TEST"]
 
         if args.data_model == "ILP32":
             gcc_args += ["-m32"]
@@ -109,12 +118,12 @@ async def compile(args):
         return (None, "ERROR (compile)", None, stderr)
 
 async def check_symbols(args, executable):
-    if args.property == "no-overflow" or args.property == "unreach-call":
+    if args.property == "no-overflow" or args.property == "unreach-call" or args.property == "coverage-error-call":
         process = await asyncio.create_subprocess_exec("nm", executable, stdout=asyncio.subprocess.PIPE)
         stdout, _ = await process.communicate()
         if args.property == "no-overflow" and b"__ubsan_" in stdout:
             return None
-        elif args.property == "unreach-call" and b"__sv_sanitizers_reach_error" in stdout: # gc-sections still leaves reach_error, but uncalled defsym-ed __sv_sanitizers_reach_error is removed
+        elif (args.property == "unreach-call" or args.property == "coverage-error-call") and b"__sv_sanitizers_reach_error" in stdout: # gc-sections still leaves reach_error, but uncalled defsym-ed __sv_sanitizers_reach_error is removed
             return None
         else:
             return ("true", None, stdout)
@@ -200,6 +209,12 @@ async def run_one(args, executable):
         "ASAN_OPTIONS": r""""halt_on_error"=true "detect_leaks"=1 detect_stack_use_after_return=1 fast_unwind_on_fatal=1""",
         "UBSAN_OPTIONS": r"""halt_on_error=1 print_stacktrace=1 fast_unwind_on_fatal=1"""
     }
+    if args.property == "coverage-error-call":
+        test_file = tempfile.NamedTemporaryFile("r", encoding="utf-8", prefix="sv-sanitizers-test-file-")
+        env["SV_SANITIZERS_TEST_FILE"] = test_file.name
+    else:
+        test_file = None
+
     with open("/dev/urandom", "r") as urandom:
         process = await asyncio.create_subprocess_exec(executable, stdin=urandom, stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.PIPE, env=env)
         processes.add(process)
@@ -208,7 +223,11 @@ async def run_one(args, executable):
             if process.returncode == 66 and b"WARNING: ThreadSanitizer: data race" in stderr:
                 return ("false(no-data-race)", parse_tsan_targets(args.program, stderr), stderr)
             elif process.returncode == 99 and b"ERROR: SV-sanitizers: reach_error" in stderr:
-                return ("false(unreach-call)", parse_libbacktrace_targets(args.program, stderr), stderr)
+                if args.property == "unreach-call":
+                    return ("false(unreach-call)", parse_libbacktrace_targets(args.program, stderr), stderr)
+                else: # args.property == "coverage-error-call"
+                    assert test_file is not None
+                    return ("done", test_file.read(), stderr)
             elif b"ERROR: AddressSanitizer: dynamic-stack-buffer-overflow" in stderr \
                 or b"ERROR: AddressSanitizer: heap-use-after-free" in stderr \
                 or b"ERROR: AddressSanitizer: heap-buffer-overflow" in stderr \
@@ -236,6 +255,8 @@ async def run_one(args, executable):
                 return None
         finally:
             processes.remove(process)
+            if test_file is not None:
+                test_file.close()
 
 async def run_worker(args, executable):
     while not stop:
@@ -307,6 +328,39 @@ def generate_yaml_witness(args, result, targets):
     with open("witness.yml", "w") as file:
         file.write(witness)
 
+def generate_test_suite(args, result, inputs):
+    if result != "done":
+        return
+    specification = determine_witness_specification(args, result)
+    with open(args.program, "rb") as file:
+        programhash = hashlib.sha256(file.read()).hexdigest()
+    architecture = "32bit" if args.data_model == "ILP32" else "64bit"
+    creationtime = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace('+00:00', 'Z') # https://stackoverflow.com/a/42777551/854540
+    metadata = f"""<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE test-metadata PUBLIC "+//IDN sosy-lab.org//DTD test-format test-metadata 1.1//EN" "https://sosy-lab.org/test-format/test-metadata-1.1.dtd">
+<test-metadata>
+    <sourcecodelang>C</sourcecodelang>
+    <producer>SV-sanitizers {VERSION}</producer>
+    <specification>{specification}</specification>
+    <programfile>{args.program}</programfile>
+    <programhash>{programhash}</programhash>
+    <architecture>{architecture}</architecture>
+    <creationtime>{creationtime}</creationtime>
+    <entryfunction>main</entryfunction>
+</test-metadata>
+"""
+    testcase = f"""<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE testcase PUBLIC "+//IDN sosy-lab.org//DTD test-format testcase 1.1//EN" "https://sosy-lab.org/test-format/testcase-1.1.dtd">
+<testcase coversError="true">
+{inputs}</testcase>
+"""
+    test_suite = Path("test-suite")
+    test_suite.mkdir(exist_ok=True)
+    with (test_suite / "metadata.xml").open("w") as file:
+        file.write(metadata)
+    with (test_suite / "testcase.xml").open("w") as file:
+        file.write(testcase)
+
 async def main():
     args = parse_args()
     args.property = parse_property(args.property)
@@ -322,6 +376,9 @@ async def main():
     sys.stderr.flush()
     print(f"SV-COMP result: {result}")
     if executable is not None:
-        generate_yaml_witness(args, result, targets)
+        if args.property == "coverage-error-call":
+            generate_test_suite(args, result, targets)
+        else:
+            generate_yaml_witness(args, result, targets)
 
 asyncio.run(main())
