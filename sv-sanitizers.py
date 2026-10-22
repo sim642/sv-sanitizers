@@ -205,8 +205,8 @@ def parse_libbacktrace_targets(program, stderr):
 async def run_one(args, executable):
     print(".", end="", flush=True)
     env={
-        "TSAN_OPTIONS": f""""exitcode"=66 "halt_on_error"=1 "report_thread_leaks"=0 "report_destroy_locked"=0 "report_signal_unsafe"=0 suppressions={str(SCRIPT_DIR / "suppressions.txt")}""",
-        "ASAN_OPTIONS": r""""halt_on_error"=true "detect_leaks"=1 detect_stack_use_after_return=1 fast_unwind_on_fatal=1""",
+        "TSAN_OPTIONS": f"""exitcode=66 halt_on_error=1 report_thread_leaks=0 report_destroy_locked=0 report_signal_unsafe=0 suppressions={str(SCRIPT_DIR / "suppressions.txt")}""",
+        "ASAN_OPTIONS": r"""halt_on_error=1 detect_leaks=1 detect_stack_use_after_return=1 fast_unwind_on_fatal=1""",
         "UBSAN_OPTIONS": r"""halt_on_error=1 print_stacktrace=1 fast_unwind_on_fatal=1"""
     }
     if args.property == "coverage-error-call":
