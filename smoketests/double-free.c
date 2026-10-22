@@ -1,7 +1,15 @@
 #include <stdlib.h>
 
+void* force_malloc(size_t size) {
+    void *p;
+    do {
+        p = malloc(size);
+    } while (p == NULL);
+    return p;
+}
+
 int main() {
-    int *p = malloc(sizeof(int));
+    int *p = force_malloc(sizeof(int));
     free(p);
     free(p);
 
