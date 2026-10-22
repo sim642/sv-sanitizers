@@ -11,7 +11,7 @@ set -x # Make script output commands.
 
 # Run smoke tests in subdirectory for convenience.
 cd smoketests/
-SV_SANITIZERS="../sv-sanitizers.py"
+SV_SANITIZERS="timeout 60s ../sv-sanitizers.py"
 # This will also check if SV-sanitizers works when executed from different directory (finds lib stubs, suppressions).
 
 

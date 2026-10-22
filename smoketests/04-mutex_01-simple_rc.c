@@ -26,5 +26,7 @@ int main(void) {
   myglobal=myglobal+1; // RACE!
   pthread_mutex_unlock(&mutex2);
   pthread_join (id, NULL);
+
+  while (1) {} // infinite loop to test that halt_on_error works
   return 0;
 }
