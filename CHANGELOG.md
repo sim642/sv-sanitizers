@@ -1,3 +1,6 @@
+## v0.3.2
+* Fix TSan and ASan options (especially `halt_on_error`) not working due to quotes.
+
 ## v0.3.1
 * Add `coverage-error-call` support via GNU `ld`.
 
