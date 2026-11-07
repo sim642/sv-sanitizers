@@ -83,6 +83,8 @@ def determine_witness_specification(args, result):
         raise RuntimeError("unknown witness specification")
     return specification
 
+STATIC_REACH_ERROR_RE = re.compile(rb"static\s+((inline|void)\s+)*reach_error")
+
 async def compile(args):
     gcc_args = ["gcc", "-fno-omit-frame-pointer", "-ffunction-sections", "-fdata-sections", "-g", str(SCRIPT_DIR / "sv-comp.c"), args.program, "-lm", "-fgnu89-inline", "-Wl,--gc-sections"] # tasks like pthread-ext/03_incdec need gnu inline, hopefully this is fine for others
     # Sections trickery for compile-time check of reach_error.
@@ -97,6 +99,11 @@ async def compile(args):
         elif args.property == "no-overflow":
             gcc_args += ["-fsanitize=signed-integer-overflow", "-fsanitize=shift-base"] #, "-fno-sanitize-recover=signed-integer-overflow"]
         elif args.property == "unreach-call" or args.property == "coverage-error-call":
+            with open(args.program, "rb") as file:
+                if re.search(STATIC_REACH_ERROR_RE, file.read()):
+                    # --defsym trickery below doesn't work if reach_error is declared static
+                    return (None, "ERROR (static reach_error)", None, None)
+
             gcc_args += ["-DSV_SANITIZERS_REACH_ERROR", "-lbacktrace", "-Wl,--defsym,reach_error=__sv_sanitizers_reach_error"] # Trickery for wrapping non-weak functions defined in the input file: https://stackoverflow.com/a/63350723/854540.
             if args.property == "coverage-error-call":
                 gcc_args += ["-DSV_SANITIZERS_TEST"]
@@ -371,9 +378,10 @@ async def main():
             result, targets, output = await run(args, executable)
         else:
             result, targets, output = result_output
-    print()
-    sys.stderr.buffer.write(output)
-    sys.stderr.flush()
+    if output is not None:
+        print()
+        sys.stderr.buffer.write(output)
+        sys.stderr.flush()
     print(f"SV-COMP result: {result}")
     if executable is not None:
         if args.property == "coverage-error-call":

@@ -1,3 +1,6 @@
+## v0.3.3
+* Fix `unreach-call` unsoundness when `reach_error` is `static`.
+
 ## v0.3.2
 * Fix TSan and ASan options (especially `halt_on_error`) not working due to quotes.
 
