@@ -29,8 +29,10 @@ grep "line: 6" witness.yml # Check witness target line.
 # Check if basic data race analysis returns correct results.
 $SV_SANITIZERS -p no-data-race.prp -d ILP32 04-mutex_01-simple_rc.c | grep "SV-COMP result: false(no-data-race)"
 grep "entry_type: violation_sequence" witness.yml # Check witness type.
+grep "format_version: \"2.4\"" witness.yml # Check witness format version.
 grep "line: 17" witness.yml # Check witness target line.
 grep "line: 26" witness.yml # Check witness target line.
+grep "thread_id: any" witness.yml # Check witness target thread(s).
 
 
 # Check if basic memsafety analysis returns correct results.
