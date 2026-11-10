@@ -108,7 +108,9 @@ size_t __VERIFIER_nondet_size_t() {
   return __sv_sanitizers_marsaglia() * 20; // TODO: __VERIFIER_nondet_return
 }
 
-// u32
+unsigned int __VERIFIER_nondet_u32() { // TODO: should depend on data model?
+  __VERIFIER_nondet_return(unsigned int, "%u", (unsigned int)fabs(__sv_sanitizers_marsaglia() * 20));
+}
 
 unsigned char __VERIFIER_nondet_uchar() {
   __VERIFIER_nondet_return(unsigned char, "%hhu", (unsigned char)(rand() % 256));

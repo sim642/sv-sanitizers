@@ -1,5 +1,6 @@
 ## v0.3.4
 * Fix `no-data-race` violation witness `thread_id`-s.
+* Add `__VERIFIER_nondet_u32` definition.
 
 ## v0.3.3
 * Fix `unreach-call` unsoundness when `reach_error` is `static`.
