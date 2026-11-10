@@ -194,7 +194,6 @@ void __sv_sanitizers_reach_error() {
 
 
 #ifdef SV_SANITIZERS_ALLOC_FAIL_PROB
-// TODO: use probability
 void* __real_malloc(size_t size);
 void* __wrap_malloc(size_t size) {
   if ((rand() / ((double)RAND_MAX)) < SV_SANITIZERS_ALLOC_FAIL_PROB)
