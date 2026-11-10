@@ -11,7 +11,7 @@ import re
 import tempfile
 
 
-VERSION="0.3.4-dev"
+VERSION="0.3.4"
 SCRIPT_DIR = Path(__file__).parent
 
 
